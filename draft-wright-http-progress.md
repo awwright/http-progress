@@ -167,7 +167,6 @@ Progress: 2/3 "Slaying dragons"
 
 HTTP/1.1 200 OK
 Progress: 3/3 "Available"
-Content-Type: application/json
 Status-URI: 201 </capture>
 Status-Location: </photos/42>
 Content-Type: text/plain
