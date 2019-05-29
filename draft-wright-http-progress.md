@@ -1,6 +1,6 @@
 ---
 title: Reporting Progress of Long-Running Operations in HTTP
-docname: draft-wright-http-progress-00
+docname: draft-wright-http-progress-latest
 category: exp
 abbrev: HTTP Progress
 ipr: trust200902
