@@ -71,7 +71,7 @@ To begin, the client makes the initial request with an unsafe method. For exampl
 
 * If the operation finishes quickly, the server can issue the final response with a non-1xx, non-202 status code. The server may respond with any response allowed by HTTP, including a document describing the result of the operation, a representation of the new state of the resource, or a minimal representation.
 
-* If the client sent a `Prefer: processing` preference, the server SHOULD issue a `102 Processing` intermediate response upon receipt of the request, and every time there is an update to the operation progress. The first intermediate response SHOULD include a `Location` header identifying the status document created for this request.  When the request finishes, respond normally with the final non-1xx, non-202 status code. If the client additionally sent a `Prefer: progress` preference, each response SHOULD include a `Progress` header in each response.
+* If the client sent a `Prefer: processing` preference, the server SHOULD issue a `102 Processing` intermediate response upon receipt of the request, and every time there is an update to the operation progress. The first intermediate response SHOULD include a `Location` header identifying the status document created for this request. When the request finishes, respond normally with the final non-1xx, non-202 status code.
 
 * If the request includes `Prefer: respond-async, wait=n`, and has been running longer than the preferred wait time, then background the operation and emit `202 Accepted`, with a `Location` header. If the server emitted a 102 Processing intermediate response, this will be the same header as before.
 
@@ -104,7 +104,7 @@ Servers MAY delete the status document any time after the operation finishes, bu
 
 ## Example
 
-Clients may send all four preferences in a request. In this example, the client issues a POST request to capture a photograph of a scenic landscape by issuing a POST request to <`http://example.com/capture`>, and the server generates a status document for this request at <`http://example.com/capture?request=42`>.
+Clients may send any combination of preferences in a request. In this example, the client issues a POST request to capture a photograph of a scenic landscape by issuing a POST request to `http://example.com/capture`, and the server generates a status document for this request at `http://example.com/capture?request=42`.
 
 ~~~ example
 POST http://example.com/capture HTTP/1.1
@@ -209,7 +209,7 @@ The Progress header includes three datum: A numerator, a denominator, and a mess
 
 The numerator specifies the number of sub-operations that have completed. The numerator MUST NOT decrease in value.
 
-The denominator specifies the total expected operations to be completed before a final status code can be delivered. The denominator MUST be larger than the numerator, if specified. If the length of the operation is unknown, it may be omitted. If additional tasks need to be performed, the denominator MAY increase.
+The denominator specifies the total expected operations to be completed before a final status code can be delivered. If specified, the denominator MUST NOT be smaller than the numerator. If the length of the operation is unknown, it may be omitted. If additional tasks need to be performed, the denominator MAY increase.
 
 The message is some sort of remark indicating the current task being carried out. If multiple files are being operated on, this might refer to the most recent file to be opened. Three forms are provided:
 
@@ -234,7 +234,7 @@ Progress: 3/20 "POST http://example.com/item/3"
 
 The Status-URI header reports the status of an operation performed on a resource by another request.
 
-The Status-URI header MAY be used any number of times in a `101 Processing` response to report the result of a subordinate operation for the request or the request that the status document is about.
+The Status-URI header MAY be used any number of times in a `101 Processing` response to report the result of a subordinate operation for the request.
 
 The Status-URI header SHOULD be used to report the final response status that the status document is about.
 
@@ -259,7 +259,7 @@ If the response is `200 OK` and includes `Progress`, `Status-URI`, and `Status-L
 
 The purpose of this header is to have a field that is semantically the same as the Location header on the initial response. This is slightly different than the Link header {{RFC8288}}, which conveys a link relationship between documents.
 
-This header is so named as it is the URI from a location header in the final response to an initial request, that has since been copied to a status document response.
+This header is so named as it is the URI from a Location header in the final response to an initial request, that has since been copied to the response headers for the status document.
 
 
 ## The "processing" preference
