@@ -18,11 +18,11 @@ author:
     email: aaa@bzfx.net
 
 normative:
-  # RFC2119:
-  # RFC7230: HTTP/1.1 Syntax
-  # RFC7231: HTTP/1.1 Semantics
-  # RFC8187: Indicating Character Encoding and Language for HTTP Header Field Parameters
-  # RFC7240: Prefer Header for HTTP
+  RFC2119: Key words for use in RFCs
+  RFC7230: HTTP/1.1 Syntax
+  RFC7231: HTTP/1.1 Semantics
+  RFC8187: Indicating Character Encoding and Language for HTTP Header Field Parameters
+  RFC7240: Prefer Header for HTTP
 
 informative:
   RFC2518: HTTP Extensions for Distributed Authoring -- WEBDAV
