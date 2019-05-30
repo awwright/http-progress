@@ -61,7 +61,7 @@ Examples in this document may add whitespace for clarity, or omit some HTTP head
 
 # Status Document Workflow
 
-The Status Document Workflow uses a status document that is related to a single request. This status document is updated with the status of the operation, until the operation completes, and then finalizes, specifying the results of the operation.
+The Status Document Workflow uses a status document that is related to a single request. This status document is updated with the status of the operation, until the operation completes, finalizing the status document with the result of the operation. No format is defined for the status document, any suitable information may be included, and the contents MAY be content-negotiated.
 
 The server SHOULD keep the status document available for a period of time after the operation finishes.
 
@@ -259,6 +259,26 @@ If the response is `200 OK` and includes `Progress`, `Status-URI`, and `Status-L
 The purpose of this header is to have a field that is semantically the same as the Location header on the initial response. This is slightly different than the Link header {{RFC8288}}, which conveys a link relationship between documents.
 
 This header is so named as it is the URI from a Location header in the final response to an initial request, that has since been copied to the response headers for the status document.
+
+
+## The "async-result" link relation
+
+If the server has potentially important information to make available from the HTTP headers of the operation response, it can make this available as an additional document via a link relation with `rel="async-result"`. The media top type and subtype of this document SHOULD be `message/http` (see {{!RFC7230}}, Section 8.3.1).
+
+The HTTP Link header {{RFC8288}} SHOULD be used to convey this relationship with the status document. For example:
+
+~~~ example
+HTTP/1.1 200 OK
+Progress: 3/3 "Available"
+Status-URI: 201 </capture>
+Status-Location: </photos/42>
+Link: </photos/42.message>; rel=async-result;
+  type="message/http;version=1.1;msgtype=response"
+Content-Type: text/plain
+
+The photographer uploaded your image to:
+  <http://example.com/photos/42>
+~~~
 
 
 ## The "processing" preference
