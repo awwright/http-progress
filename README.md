@@ -23,12 +23,12 @@ Use PATCH with an existing resource using the `message/byteranges` or `multipart
 
 ## Resume interrupted request
 
-When a request begins, the server may provide a URI representing the location where the upload is being stored (either in memory or on disk). The request may be continued with a PATCH request to this resource.
+When a request begins, the server may provide a `Request-Content-Location` representing the URI where the upload is being stored (either in memory or on disk). The request may be completed with a PATCH request to this resource.
 
 
 ## Progress on ongoing request
 
-Allows a server to report the current status of an ongoing request.
+Allows a server to report the current status of an ongoing request using the `102 Processing` status code with a `Progress` header.
 
 
 ## Resume interrupted response
