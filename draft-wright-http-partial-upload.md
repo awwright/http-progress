@@ -13,7 +13,9 @@ HTTP is a stateless protocol, which implies that if a request is interrupted, th
 
 ## Modifying a content range with PATCH
 
-Normally, a server will only change its global state after a complete upload finishes. Partial uploads allows clients to upload parts of a resource, leaving the server in a state where resources are not fully written out.
+The PATCH method allows a client to modify a resource in a specific way, as specified by the request payload.
+
+The client may use the `message/byteranges` media type, defined below, to patch a single range; or the client may use the existing `multipart/byteranges` media type to change one or more ranges in a single request.
 
 
 ## Segmented upload with PATCH
@@ -27,7 +29,6 @@ Additional segments are uploaded with the same format.
 When the final segment is uploaded, the server detects the resource is completely uploaded, and returns the final status code.
 
 If the client loses the state of the upload, or the connection is terminated, the user agent can re-synchronize by issuing a `HEAD` request for the resource to get the current uploaded length. The response will typically be 200 (OK) or 2__ (Incomplete Content). The user agent may resume uploading the document from that offset.
-
 
 
 ## Registrations
