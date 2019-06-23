@@ -39,14 +39,6 @@ This response header specifies the server-specified location where a copy of the
 This header is used by clients to determine the final result of a request that has been interrupted.
 
 
-### "incomplete" preference
-
-The `incomplete` HTTP Preference specifies how a server should respond to a resource that has not been fully written out.
-
-* `incomplete=stream` indicates the server should hold the connection open, waiting for the bytes to become available.
-* `incomplete=status` indicates the server should send a 2__ (Incomplete Content) response code indicating the server expects more content for the resource in the near future.
-
-
 ### "resumable" preference
 
 The `incomplete` HTTP Preference specifies how a server should handle a request that was terminated before it was finished by the client.
