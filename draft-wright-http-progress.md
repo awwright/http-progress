@@ -59,9 +59,14 @@ This document uses ABNF as defined in {{!RFC5234}} and imports grammar rules fro
 Examples in this document may add whitespace for clarity, or omit some HTTP headers for brevity; requests and responses may require additional Host, Connection, and/or Content-Length headers to be properly received.
 
 
+## Scope
+
+This document is only intended to provide a mechanism for relaying the progress of a long-running operation, it does not intend to be a general mechanism for subscribing to updates on a resource in general.
+
+
 # Status Document Workflow
 
-The Status Document Workflow uses a status document that is related to a single request. This status document is updated with the status of the operation, until the operation completes, and then finalizes, specifying the results of the operation.
+The Status Document Workflow uses a status document that is related to a single request. This status document is updated with the status of the operation, until the operation completes, finalizing the status document with the result of the operation. No format is defined for the status document, any suitable information may be included, and the contents MAY be content-negotiated.
 
 The server SHOULD keep the status document available for a period of time after the operation finishes.
 
