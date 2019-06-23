@@ -12,7 +12,15 @@ HTTP is a stateless protocol, which implies that if a request is interrupted, th
 
 When a user-agent wants to be able to make a request on a resource, and upload the request body in segments, the server must create a resource that the user agent can upload to. Once the resource has been written to, it can use the contents of that resource as the request-body for the original request.
 
-The initial request is done with `Expect: 100-continue` with `Prefer: partial-resume`, which returns a `Request-Content-Location` and `Response-Message-Location`. If the request is interrupted, the Location target may be queried with a HEAD query. A 200 response indicates 
+The initial request is done with `Expect: 100-continue` with `Prefer: resume`, which will return a `100 Continue` intermediate response with `Request-Content-Location`, `Response-Message-Location`, and/or `Content-Location` headers.
+
+If the bootstrap was interrupted, the client can be assured the server state has not changed because the server state cannot change until the `100 Continue` response begins uploading.
+
+If the request is interrupted, the request resource may be queried to determine if the server received the full contents. If not, the upload may be completed by issuing a PATCH request to complete the contents.
+
+If the upload was received by the server but the response was not received by the client, the client may query the response message resource to determine if a response is available.
+
+If the response headers were received, but the payload was only partially received, the client may make a Range request to the content-location resource to complete the download of the response.
 
 
 ## Registrations
