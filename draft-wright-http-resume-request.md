@@ -1,6 +1,6 @@
+# Partial and Resumable Requests in HTTP
 
-# Partial and Resumable Uploads in HTTP
-
+This document describes a standard mechanism by which servers can address the location where a request is being processed, allowing subsequent requests to complete it, if interrupted.
 
 
 ## Introduction

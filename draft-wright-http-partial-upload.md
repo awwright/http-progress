@@ -1,7 +1,7 @@
 
 # Partial Uploads in HTTP
 
-HTTP is a protocol that allows requests modifiying the server state. Typically, an interrupted request must be restarted from the start, due to the stateless nature of the protocol. This document specifies a new media type intended for use in PATCH payloads that allows a resource to be uploaded in several segments, instead of a single large request.
+This document specifies a new media type intended for use in PATCH payloads that allows a resource to be uploaded in several segments, instead of a single large request.
 
 
 ## Introduction
