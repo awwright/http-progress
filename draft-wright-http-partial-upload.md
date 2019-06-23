@@ -20,7 +20,7 @@ The client may use the `message/byteranges` media type, defined below, to patch 
 
 ## Segmented upload with PATCH
 
-As an alternative to using PUT to create a new resource, the contents of a resource being uploaded in _segments_, written across several PATCH requests.
+As an alternative to using PUT to create a new resource, the contents of a resource may be uploaded in _segments_, each written across several PATCH requests.
 
 The first PATCH request creates the resource and uploads the first segment. To ensure the resource does not exist, the request SHOULD include `If-None-Match: *`. The request payload is a `message/byteranges` document containing the first segment of the resource to be uploaded, and the total length of the resource to be uploaded. Upon processing, the server returns `202 Accepted` indicating the request is error-free up to this point, but that final results are not yet available.
 
