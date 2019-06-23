@@ -10,7 +10,7 @@ HTTP is a stateless protocol, which implies that if a request is interrupted, th
 
  ## Continue Outstanding Request Workflow
 
-When a user-agent wants to be able to make a request on a resource, and upload the request body in segments, the server must create a resource that the user agent can upload to. Once the resource has been written to, it can use the contents of that resource as the request-body for the original request.
+When a user-agent wants to make a lengthy upload, it is typical to include `Expect: 100-continue` and wait for the server to validate the request headers before allowing the upload to proceed. In the event the request is interrupted, the server can provide a URI that addresses the location where the request is being buffered or stored.
 
 The initial request is done with `Expect: 100-continue` with `Prefer: resume`, which will return a `100 Continue` intermediate response with `Request-Content-Location`, `Response-Message-Location`, and/or `Content-Location` headers.
 

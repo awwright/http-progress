@@ -35,7 +35,7 @@ If the client loses the state of the upload, or the connection is terminated, th
 
 ### 2__ (Incomplete Content) status code
 
-The 2__ (Incomplete Content) status code indicates that while the returned representation is up-to-date, more data is expected to be written in the near future.
+The 2__ (Incomplete Content) status code indicates that while the returned representation is up-to-date, the server is aware that the resource is not ready for use, and more data is expected to be written in the near future.
 
 Representations returned with this status code might not be valid according to their media type, but could become valid once more data is appended.
 
