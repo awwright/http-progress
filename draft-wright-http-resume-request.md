@@ -39,12 +39,14 @@ This response header specifies the server-specified location where a copy of the
 This header is used by clients to determine the final result of a request that has been interrupted.
 
 
-### "resumable" preference
+### "resume" preference
 
 The `incomplete` HTTP Preference specifies how a server should handle a request that was terminated before it was finished by the client.
 
-* `resumable=save-incomplete` indicates the server should commi
-* `resumable=ignore` indicates the server discard the operation
+* `resume=save-incomplete` indicates the server should save the partial upload for a period of time long enough for a subsequent request to finish it.
+* `resume=ignore` indicates the server discard the operation
+
+Any presence of the `resume` preference is a request to send `Request-Content-Location`, `Response-Message-Location`, and `Content-Location` headers. An unspecified parameter value defaults to `save-incomplete`.
 
 
 ## Security Conscerns
