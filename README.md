@@ -94,6 +94,7 @@ The client writes out a segment of the original upload using a PATCH request to 
 ~~~
 PATCH http://example.com/requests/1.request HTTP/1.1
 Content-Type: message/byteranges
+Content-Length: {length}
 
 Content-Type: application/json
 Content-Range: bytes 3-19/100
@@ -137,7 +138,7 @@ Content-Type: text/plain
 The photographer is on step 2: Knitting sweaters
 ~~~
 
-### Request/response 4: Reading the final response
+### Request/response 4: Reading the final status
 
 Now that the client has an address to a status document, it can request that document:
 
@@ -163,6 +164,25 @@ Content-Type: text/plain
 
 The photographer uploaded your image to:
   <http://example.com/photos/42>
+~~~
+
+
+### Request/response 5: Reading the final result
+
+If written out in the initial request, the response-message-location is the address of document that contains the response (or what would have been the response) to the initial request:
+
+~~~http
+GET http://example.com/1.response HTTP/1.1
+
+~~~
+
+~~~http
+HTTP/1.1 201 Created
+Location: http://example.com/items/1
+Content-Type: text/plain
+Content-Length: 19
+
+Resource created.
 ~~~
 
 

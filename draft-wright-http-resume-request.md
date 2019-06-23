@@ -31,6 +31,8 @@ This response header specifies the server-specified location that the request me
 
 This may be used in a 1xx status to indicate where the client may continue uploading a body to, in the event the upload is interrupted.
 
+The actual contents of the request does not need to be made available, the server MAY choose to only support a HEAD request, if it can respond with the correct `Content-Length` of the upload. GET requests in this case would return `405 (Method Not Allowed)` with an `Allow: HEAD, PATCH` header.
+
 
 ### Response-Message-Location
 
