@@ -126,9 +126,6 @@ HTTP/1.1 102 Processing
 Progress: 0/3 "Herding cats"
 Location: </1.status>
 
-~~~
-
-~~~http
 HTTP/1.1 102 Processing
 Progress: 1/3 "Knitting sweaters"
 
@@ -149,6 +146,9 @@ Now that the client has an address to a status document, it can request that doc
 GET http://example.com/1.status HTTP/1.1
 Prefer: processing, respond-async
 
+~~~
+
+~~~http
 HTTP/1.1 102 Processing
 Progress: 1/3 "Knitting sweaters"
 
