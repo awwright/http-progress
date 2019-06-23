@@ -85,7 +85,7 @@ Content-Length: 3
 
 ~~~
 
-Now the client knows only the first three bytes were received by the server.
+Now the client knows only the first three bytes were received by the server. The `2__ Incomplete Content` status code tells the client the query for the resource was successful, but the server is waiting for more data to be appended to the document.
 
 ### Request/response 3: Resume upload
 
@@ -114,19 +114,21 @@ Content-Type: message/byteranges
 Content-Type: application/json
 Content-Range: bytes 20-99/100
 
-"name", "...",
-}
+"name", "..." }
 ~~~
 
 Where `...` is content that has been omitted for brevity.
 
-The server now begins processing this file, beginning by emitting a `102 Processing` intermediate response, then after the server realizes this operation may take longer than the client has declared it is willing to wait, it responds with 202 Accepted. This status code is again 202 Accepted to indicate the final status is not yet known. Both the client and server understand the request payload is fully uploaded, so no special status is necessary.
+The server now begins processing this file, beginning by emitting a `102 Processing` intermediate response acknloging that processing has begun. After 20 seconds of processing, the server realizes it has been running for longer than the client says it is prepared to wait, and so responds with `202 Accepted`. This status code is the same as before even though the upload has completed, because the final status is _still_ not yet known.
 
 ~~~http
 HTTP/1.1 102 Processing 
 Progress: 0/3 "Herding cats"
 Location: </1.status>
 
+~~~
+
+~~~http
 HTTP/1.1 102 Processing
 Progress: 1/3 "Knitting sweaters"
 
