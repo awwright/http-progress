@@ -37,6 +37,8 @@ If the client loses the state of the upload, or the connection is terminated, th
 
 The 2__ (Incomplete Content) status code indicates that while the returned representation is up-to-date, the server is aware that the resource is not ready for use, and more data is expected to be written in the near future.
 
+If used in an unsafe request, it means the operation succeeded, but more requests are necessary before the server can do anything else with the resource.
+
 Representations returned with this status code might not be valid according to their media type, but could become valid once more data is appended.
 
 This is a 2xx class status because it is typically only received by clients actively working with partial uploads. Clients not expecting an Incomplete Content response MAY treat this status as an error.

@@ -101,7 +101,7 @@ Content-Range: bytes 3-19/100
 "key": "value",
 ~~~
 
-The server responds with the 202 Accepted status code, indicating the upload looks good so far, but still isn't complete, and final determination has yet to be made.
+The server responds with the `2__ (Incomplete Content)` status code, indicating the upload looks good so far, but no action can be taken until the resource is fully written to.
 
 ### Request/response 3: Finish upload
 
@@ -119,7 +119,7 @@ Content-Range: bytes 20-99/100
 
 Where `...` is content that has been omitted for brevity.
 
-The server now begins processing this file, beginning by emitting a `102 Processing` intermediate response acknloging that processing has begun. After 20 seconds of processing, the server realizes it has been running for longer than the client says it is prepared to wait, and so responds with `202 Accepted`. This status code is the same as before even though the upload has completed, because the final status is _still_ not yet known.
+The server now begins processing this file, beginning by emitting a `102 Processing` intermediate response acknowledging that processing has begun. After 20 seconds of processing, the server realizes it has been running for longer than the client says it is prepared to wait, and so responds with `202 Accepted`.
 
 ~~~http
 HTTP/1.1 102 Processing 
