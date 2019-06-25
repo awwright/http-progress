@@ -14,9 +14,9 @@ When a user-agent wants to make a lengthy upload, it is typical to include `Expe
 
 The initial request is done with `Expect: 100-continue` with `Prefer: resume`, which will return a `100 Continue` intermediate response with `Request-Content-Location`, `Response-Message-Location`, and/or `Content-Location` headers.
 
-If the bootstrap was interrupted, the client can be assured the server state has not changed because the server state cannot change until the `100 Continue` response begins uploading.
+If the request was interrupted before `100 Continue` was received, then the server state has not changed yet, and the client may re-issue the request.
 
-If the request is interrupted, the request resource may be queried to determine if the server received the full contents. If not, the upload may be completed by issuing a PATCH request to complete the contents.
+If the request is interrupted while uploading the request payload, the request-content-resource may be queried to determine if the server received the full contents. If not, the upload may be completed by issuing a PATCH request to complete the contents.
 
 If the upload was received by the server but the response was not received by the client, the client may query the response message resource to determine if a response is available.
 
@@ -43,10 +43,10 @@ This header is used by clients to determine the final result of a request that h
 
 ### "resume" preference
 
-The `incomplete` HTTP Preference specifies how a server should handle a request that was terminated before it was finished by the client.
+The `resume` HTTP Preference specifies how a server should handle a request that was terminated before it was finished by the client.
 
-* `resume=save-incomplete` indicates the server should save the partial upload for a period of time long enough for a subsequent request to finish it.
-* `resume=ignore` indicates the server discard the operation
+* `resume=save-incomplete` indicates the server should save the partial upload for a period of time so that a subsequent request can complete it.
+* `resume=ignore-incomplete` indicates the server should discard the operation; this is useful if the client only intends to support retrying failed requests from the beginning.
 
 Any presence of the `resume` preference is a request to send `Request-Content-Location`, `Response-Message-Location`, and `Content-Location` headers. An unspecified parameter value defaults to `save-incomplete`.
 

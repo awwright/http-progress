@@ -69,7 +69,7 @@ With `100 Continue` in hand, the client begins uploading. However, somewhere alo
 
 ### Request/response 2: Re-synchronize upload
 
-At this point, the client doesn't know exactly how many bytes were transferred, so it makes a HEAD request to the request-content-location:
+At this point, the client doesn't know exactly how many bytes the server actually received, so it makes a HEAD request to the request-content-location:
 
 ~~~http
 HEAD http://example.com/requests/1.request HTTP/1.1

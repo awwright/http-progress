@@ -43,6 +43,8 @@ Representations returned with this status code might not be valid according to t
 
 This is a 2xx class status because it is typically only received by clients actively working with partial uploads. Clients not expecting an Incomplete Content response MAY treat this status as an error.
 
+Responses to a HEAD request MUST return the same end-to-end headers as a GET request. Normally, payload headers could be omitted, however Content-Length and Content-Range are essential fields for synchronizing the state of partial uploads. Hop-by-hop headers may still be omitted.
+
 
 ### message/byteranges media type
 
