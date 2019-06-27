@@ -51,6 +51,8 @@ Responses to a HEAD request MUST return the same end-to-end headers as a GET req
 The `message/byteranges` media type is a media type that patches the defined byte range to some specified contents. It is semantically a subset of the `message/http` media type, in that it must be a message with a `Range` header specifying a byte range, and the bytes in that range. It is also semantically the same as a `multipart/byteranges` document that lists a single byte range, this media type eliminates the need for specifying a seperator. For specifying multiple ranges, use `multipart/byteranges` instead.
 
 
-## Security Conscerns
+## Security Considerations
 
-Servers SHOULD only allow patches to ranges starting inside or immediately after the end of the representation. To prevent disclosing the contents of memory, servers MUST only fill undefined ranges with data predictable to the client (e.g. zeros).
+### Unallocated ranges
+
+Servers SHOULD only allow patches to ranges starting inside or immediately after the end of the representation. To prevent disclosing the contents of memory, servers MUST fill undefined ranges with predictable data (e.g. zeros).
