@@ -39,6 +39,8 @@ If the final headers have been written but the payload transfer was interrupted,
 
 ## Example
 
+These documents may be deployed and used individually, or all together.
+
 Here is an example of a POST request that ends up using all of the functionality described here: An initial request that is interrupted and resumed, processed by the server, with regular updates on its progress, and reading the final response:
 
 ### Request/response 1: Initial unsafe request

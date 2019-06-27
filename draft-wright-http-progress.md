@@ -97,8 +97,6 @@ The client may do this for any reason, including:
 
 If the client makes this request with the `Prefer: processing` preference, the server SHOULD send an initial `102 Processing` header, and `102 Processing` responses for every progress update until the operation completes.
 
-If or when the operation completes, the server SHOULD include `Status-URI` and, if applicable, `Status-Location` headers specifying the status code and Location (if any) of the final response to the initial request.
-
 
 ## Closing the Operation
 
@@ -173,7 +171,6 @@ Progress: 2/3 "Slaying dragons"
 HTTP/1.1 200 OK
 Progress: 3/3 "Available"
 Status-URI: 201 </capture>
-Status-Location: </photos/42>
 Content-Type: text/plain
 
 The photographer uploaded your image to:
@@ -240,8 +237,6 @@ The Status-URI header reports the status of an operation performed on a resource
 
 The Status-URI header MAY be used any number of times in a `101 Processing` response to report the result of a subordinate operation for the request.
 
-The Status-URI header SHOULD be used to report the final response status that the status document is about.
-
 ~~~ abnf
 Status-URI    = #status-pair
 status-pair   = status-code OWS "<" URI-Reference ">"
@@ -255,15 +250,6 @@ Example usage:
 Status-URI: 507 <http://example.com/photo/41>
 Status-URI: 200 <http://example.com/capture>
 ~~~
-
-
-## The "Status-Location" header
-
-If the response is `200 OK` and includes `Progress`, `Status-URI`, and `Status-Location` headers, and the progress numerator is the same as the denominator, then the document is a status document about a completed operation, and the `Status-Location` header identifies the URI of the resource that would have been identified by the `Location` header in the initial request. The meaning of the value of this header is dependent on the value of the status code from the `Status-URI` header.
-
-The purpose of this header is to have a field that is semantically the same as the Location header on the initial response. This is slightly different than the Link header {{RFC8288}}, which conveys a link relationship between documents.
-
-This header is so named as it is the URI from a Location header in the final response to an initial request, that has since been copied to the response headers for the status document.
 
 
 ## The "processing" preference
