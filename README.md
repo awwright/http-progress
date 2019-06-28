@@ -36,6 +36,12 @@ If a request has been fully written, but the connection is interrupted before th
 
 If the final headers have been written but the payload transfer was interrupted, the client may additionally use the `Content-Location` header as already defined.
 
+## Node.js Proof-of-Concept
+
+This includes a proof-of-concept written for Node.js. As of Node.js v12.4.0, a patch is required to expose headers in 1xx intermediate status requests.
+
+* demo/httpd.js - Server implementing resumable requests, the byteranges PATCH type, and progress of long-running responses. For testing purposes, POST requests are reset after 200000 bytes.
+
 
 ## Example
 
@@ -56,7 +62,7 @@ Prefer: resume, processing, respond-async, wait=20
 
 The client now waits for a 100-continue response:
 
-~~~
+~~~http
 HTTP/1.1 100 Continue
 Request-Content-Location: http://example.com/requests/1.request
 Response-Message-Location: http://example.com/requests/1.response
@@ -92,7 +98,7 @@ Now the client knows only the first three bytes were received by the server. The
 
 The client writes out a segment of the original upload using a PATCH request to the request-content-location:
 
-~~~
+~~~http
 PATCH http://example.com/requests/1.request HTTP/1.1
 Content-Type: message/byteranges
 Content-Length: {length}
@@ -109,7 +115,7 @@ The server responds with the `2__ (Incomplete Content)` status code, indicating 
 
 The server writes out the remainder of the request using a PATCH request to the request-content-location:
 
-~~~
+~~~http
 PATCH http://example.com/requests/1.request HTTP/1.1
 Content-Type: message/byteranges
 
