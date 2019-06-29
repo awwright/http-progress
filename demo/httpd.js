@@ -29,7 +29,9 @@ var requestCount = 0;
 // List of flags to apply to each request
 var testSuite = [
 	{},
+	// {interruptContinue: true},
 	{interruptInitialUpload: true},
+	{interruptInitialUpload: true, interruptPatchUpload: true},
 ];
 
 var testStatus = [];
@@ -48,8 +50,8 @@ resetTestStatus();
 function RequestState(reqId, req){
 	this.reqId = reqId;
 	this.req = req;
-	this.requestPayloadRead = 0;
-	this.requestPayload = null;
+	this.jobPayloadRead = 0;
+	this.jobPayload = null;
 	// Flags to change behavior
 	this.flags = {};
 }
@@ -62,8 +64,22 @@ RequestState.prototype.init = function init(req, res){
 		res.end();
 		return;
 	}
-	this.requestPayloadRead = 0;
-	this.requestPayload = new Buffer(parseInt(req.headers['content-length']));
+	this.jobPayloadRead = 0;
+	this.jobPayload = new Buffer.alloc(parseInt(req.headers['content-length']));
+	if(req.headers['expect'] && req.headers['expect'] !== '100-continue'){
+		res.statusCode = 417;
+		res.end();
+	}
+	if(req.headers['expect'] !== '100-continue'){
+		res.statusCode = 400;
+		res.setHeader('Content-Type', 'text/plain');
+		res.end('Expected 100-continue\r\n');
+	}
+	if(this.flags.interruptContinue && !this.interruptContinueTrip){
+		this.interruptContinueTrip = true;
+		console.error('Destroying client connection');
+		res.socket.destroy();
+	}
 	// TODO fully parse this header
 	if(req.headers['prefer']){
 		res._writeRaw('HTTP/1.1 100 Continue\r\n');
@@ -72,14 +88,13 @@ RequestState.prototype.init = function init(req, res){
 		res._writeRaw(`\r\n`);
 	}
 	req.on('data', function(segment){
-		segment.copy(self.requestPayload, self.requestPayloadRead, 0, segment.length);
-		self.requestPayloadRead += segment.length;
-		res._writeRaw(`HTTP/1.1 199 Acknowledge ${self.requestPayloadRead}B\r\n`);
-		// res._writeRaw(`Request-Ack: ${self.requestPayloadRead}\r\n`);
+		segment.copy(self.jobPayload, self.jobPayloadRead, 0, segment.length);
+		self.jobPayloadRead += segment.length;
+		res._writeRaw(`HTTP/1.1 199 Acknowledge ${self.jobPayloadRead}B\r\n`);
+		// res._writeRaw(`Request-Ack: ${self.jobPayloadRead}\r\n`);
 		res._writeRaw(`\r\n`);
-		if(self.flags.interruptInitialUpload && self.requestPayloadRead > 200000){
+		if(self.flags.interruptInitialUpload && self.jobPayloadRead > 100000){
 			// Interrupt the connection after reading a certain amount of bytes
-			res._writeRaw(`HTTP/1.1 199 Bye\r\n`);
 			console.error('Destroying client connection');
 			res.socket.destroy();
 		}
@@ -87,20 +102,20 @@ RequestState.prototype.init = function init(req, res){
 	req.on('end', function(segment){
 		res._writeRaw(`HTTP/1.1 199 Acknowledge end\r\n`);
 		res._writeRaw(`\r\n`);
-		// Determine if uploaded size equals expected
-		res.end("Processing\r\n");
+		self.executeJob(res);
 	});
 };
 
 RequestState.prototype.renderRequest = function renderRequest(req, res){
-	if(this.finalLength===null || this.requestPayloadRead < this.requestPayload.length){
+	if(this.jobPayloadRead < this.jobPayload.length){
 		res.statusCode = IncompleteResource;
 		res.statusMessage = 'Incomplete Resource'
 	}else{
 		res.statusCode = 200;
 	}
-	res.setHeader('Content-Length', this.requestPayloadRead);
-	res.end(this.requestPayload.slice(0, this.requestPayloadRead));
+	res.setHeader('Content-Length', this.jobPayloadRead);
+	if(req.method==='HEAD') res.end();
+	res.end(this.jobPayload.slice(0, this.jobPayloadRead));
 }
 
 RequestState.prototype.patchRequest = function patchRequest(req, res){
@@ -115,7 +130,14 @@ RequestState.prototype.patchRequest = function patchRequest(req, res){
 	var messageHeaders = {};
 	var segmentOffset = null;
 	var requestRemaining = null;
+	var read = 0;
 	req.on('data', function(data){
+		if(self.flags.interruptPatchUpload && read > 100000){
+			// Interrupt the connection after reading a certain amount of bytes
+			console.error('Destroying client connection');
+			res.socket.destroy();
+		}
+		read += data.length;
 		buffer = Buffer.concat([buffer, data]);
 		while(buffer.length){
 			if(state==='header-line'){
@@ -134,24 +156,29 @@ RequestState.prototype.patchRequest = function patchRequest(req, res){
 						return res.end('Expected patch to contain a Content-Range field.\r\n');
 					}
 					var m = messageHeaders['content-range'].match(/^(\d+)-(\d+)\/(\d+)$/);
+					var contentLength = parseInt(messageHeaders['content-length']);
 					segmentOffset = parseInt(m[1]);
 					var segmentEnd = parseInt(m[2]);
 					var segmentTotal = parseInt(m[3]);
-					console.error(`PATCH ${segmentOffset}-${segmentEnd}/${segmentTotal} ${messageHeaders['content-length']}`);
-					if(segmentOffset !== self.requestPayloadRead){
+					if(segmentOffset !== self.jobPayloadRead){
 						res.statusCode = 400;
 						res.setHeader('Content-Type', 'text/plain')
-						return res.end('Incorrect Content-Range starting index: Have '+segmentOffset+', expect '+self.requestPayloadRead+'\r\n');
+						return res.end('Incorrect Content-Range starting index: Have '+segmentOffset+', expect '+self.jobPayloadRead+'\r\n');
 					}
-					if(segmentEnd > self.requestPayload.length || segmentEnd < segmentOffset){
+					if(segmentEnd > self.jobPayload.length || segmentEnd < segmentOffset){
 						res.statusCode = 400;
 						res.setHeader('Content-Type', 'text/plain')
 						return res.end('Incorrect Content-Range ending index.\r\n');
 					}
-					if(segmentTotal !== self.requestPayload.length){
+					if(segmentTotal !== self.jobPayload.length){
 						res.statusCode = 400;
 						res.setHeader('Content-Type', 'text/plain')
 						return res.end('Incorrect Content-Range total length.\r\n');
+					}
+					if(contentLength !== segmentEnd-segmentOffset+1){
+						res.statusCode = 400;
+						res.setHeader('Content-Type', 'text/plain')
+						return res.end('Mismatch between Content-Length and Content-Range.\r\n');
 					}
 					requestRemaining = parseInt(messageHeaders['content-length']);
 					buffer = buffer.slice(2);
@@ -168,37 +195,54 @@ RequestState.prototype.patchRequest = function patchRequest(req, res){
 					res.setHeader('Content-Type', 'text/plain');
 					return res.end('Patch longer than declared length.\r\n');
 				}
-				if(segmentOffset + buffer.length > self.requestPayload.length){
+				if(segmentOffset + buffer.length > self.jobPayload.length){
 					res.statusCode = 400;
 					res.setHeader('Content-Type', 'text/plain')
-					return res.end('Over-long patch body.\r\n'+`${segmentOffset} + ${buffer.length} > ${self.requestPayload.length}\r\n`);
+					return res.end('Over-long patch body.\r\n'+`${segmentOffset} + ${buffer.length} > ${self.jobPayload.length}\r\n`);
 				}
-				buffer.copy(self.requestPayload, segmentOffset);
-				self.requestPayloadRead += buffer.length;
+				buffer.copy(self.jobPayload, segmentOffset);
+				self.jobPayloadRead += buffer.length;
 				segmentOffset += buffer.length;
 				requestRemaining -= buffer.length;
-				res._writeRaw(`HTTP/1.1 199 Acknowledge ${self.requestPayloadRead}B\r\n`);
+				res._writeRaw(`HTTP/1.1 199 Acknowledge ${self.jobPayloadRead}B\r\n`);
 				res._writeRaw(`\r\n`);
 				buffer = Buffer.alloc(0);
 				return;
+			}else{
+				throw new Error('Unknown state');
 			}
 		}
 	});
 	req.on('end', function(){
-		if(self.requestPayload.length === self.requestPayloadRead){
-			res.statusCode = 202;
-			res.setHeader('Location', `/job/${self.reqId}.job`);
-			return res.end();
+		if(requestRemaining){
+			res.statusCode = 400;
+			res.setHeader('Content-Type', 'text/plain')
+			return res.end('Under-size patch body.\r\n');
+		}
+		if(self.jobPayload.length === self.jobPayloadRead){
+			// res.statusCode = 202;
+			// res.setHeader('Location', `/job/${self.reqId}.job`);
+			// return res.end();
+			self.executeJob(res);
 		}else{
 			res.statusCode = IncompleteResource;
 			res.statusMessage = 'Incomplete Resource';
-			return res.end(`${self.requestPayloadRead}/${self.requestPayload.length} bytes\r\n`);
+			res.setHeader('Content-Type', 'text/plain');
+			res.end(`${self.jobPayloadRead}/${self.jobPayload.length} bytes\r\n`);
+			return;
 		}
 	});
 }
 
+RequestState.prototype.executeJob = function executeJob(res){
+	// Determine if uploaded size equals expected
+	res.end("Job received\r\n");
+}
+
 RequestState.prototype.renderResponseMessage = function renderResponseMessage(req, res){
 	// Output the current status of the request
+	res.statusCode = 200;
+	res.end();
 }
 
 RequestState.prototype.renderStatusDocument = function renderStatusDocument(req, res){
@@ -315,6 +359,18 @@ function request(req, res){
 			var state = new RequestState(reqId, req);
 			requests.set(reqId, state);
 			state.flags = testSuite[testId];
+			state.executeJob = function executeJob(res){
+				for(var i=0, s=''; i<100000; i++){
+					if(this.jobPayload.slice(i*10, i*10+10).toString() !== (('0000000'+i).substr(-8)+'\r\n') ){
+						testStatus[testId].status = "fail";
+						testStatus[testId].message = "Test failed at byte "+(i*10);
+						res.end("Test failed at byte "+i*10+"\r\n");
+						return;
+					}
+				}
+				testStatus[testId].status = "pass";
+				res.end("Test passed\r\n");
+			};
 			state.init(req, res);
 			return;
 		}else{
@@ -329,7 +385,7 @@ function request(req, res){
 		if(req.method==='GET' || req.method==='HEAD'){
 			var json = JSON.stringify(testStatus.map(function(item){
 				return item.href;
-			}), null, ' ');
+			}), null, ' ') + "\n";
 			res.setHeader('Content-Type', 'application/json');
 			// `json` is only ASCII characters, so this works
 			res.setHeader('Content-Length', json.length);
@@ -364,7 +420,7 @@ function request(req, res){
 		res.setHeader('Allow', 'GET, HEAD, POST');
 		if(req.method==='GET' || req.method==='HEAD'){
 			res.setHeader('Content-Type', 'application/json');
-			res.end(JSON.stringify(testStatus,null,'\t'));
+			res.end(JSON.stringify(testStatus,null,'\t')+"\n");
 			return;
 		}else if(req.method==='POST'){
 			var reqId = requestCount++;

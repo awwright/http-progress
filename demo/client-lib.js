@@ -26,6 +26,7 @@ function ResumableClientRequest(url, options, cb){
 	this.writeDest = null;
 	this.writeDestAvailable = null;
 	this.initialRequest.setHeader('Prefer', 'resume');
+	this.initialRequest.setHeader('Expect', '100-continue');
 	this.retryUpload = [];
 	this.retryDownload = [];
 	this.uploadLength = 0;
@@ -33,6 +34,7 @@ function ResumableClientRequest(url, options, cb){
 	this.uploadBufferParts = [];
 	this.uploadBufferOffset = 0;
 	this.uploadBufferLength = 0;
+	this.uploadOpen = true;
 
 	this.initialRequest.on('response', function(res){
 		self.initialResponse = res;
@@ -52,6 +54,7 @@ function ResumableClientRequest(url, options, cb){
 			error = err;
 		});
 		res.on('end', function(){
+			readableSide.emit('end');
 			if(!error) readableSide.push(null);
 		});
 	});
@@ -82,7 +85,7 @@ function ResumableClientRequest(url, options, cb){
 				self.initialResponseMessageLocation = uriResolve(self.url, info.headers['response-message-location']);
 			}
 		}
-		self._uploadBuffer(0);
+		self._pipeBuffer(0, function(){});
 	}
 
 	this.initialRequest.on('error', function(err){ 
@@ -101,7 +104,7 @@ function ResumableClientRequest(url, options, cb){
 
 // ResumableClientRequest.prototype._implicitHeader = NativeClientRequest.prototype._implicitHeader;
 
-ResumableClientRequest.prototype._retryUpload = function(){
+ResumableClientRequest.prototype._retryUpload = function _retryUpload(){
 	var self = this;
 
 	// synchronize state
@@ -111,10 +114,12 @@ ResumableClientRequest.prototype._retryUpload = function(){
 		headers: {
 		},
 	};
-	var headRequest = new NativeClientRequest(this.initialRequestContentLocation, options, headResponse);
+	var headRequest = new NativeClientRequest(this.initialRequestContentLocation, options);
 	self.emit('retryRequest', headRequest);
 	headRequest.end();
-	function headResponse(headRes){
+	headRequest.once('error', function(){
+	});
+	headRequest.once('response', function headResponse(headRes){
 		if(!headRes.headers['content-length']){
 			// TODO: begin re-uploading from last ACK'd byte in small segments
 			return;
@@ -125,76 +130,133 @@ ResumableClientRequest.prototype._retryUpload = function(){
 			throw new Error('Unknown Content-Length in response');
 		}
 		self._submitUpload(ackBytes, function(err){
-			if(err){
-				// If successful, continue with another _submitUpload until fully uploaded
-				self._retryUpload();
-			}else{
-				// If error, re-sync and retry
-				self._submitUpload();
-			}
+			process.nextTick(function(){
+				if(err){
+					// Retry if error
+					self.writeDest = null;
+					self._retryUpload(_retryUpload.bind(self));
+					return;
+				}else if(self.uploadConfirmed === self.uploadLength){
+					// If all uploaded, now try downloading
+					self._restartDownload();
+				}else{
+					// If not fully uploaded, upload next segment
+					self._submitUpload(self.uploadConfirmed);
+				}
+			});
 		});
-	}
+	});
 };
 
 ResumableClientRequest.prototype._submitUpload = function(offset, cb){
+	if(typeof offset!=='number') throw new Error('Expected number `offset`');
 	var self = this;
 	// Upload new segment
+	var patchInfo =
+		`Content-Range: ${offset}-${self.uploadLength-1}/${self.uploadLength}\r\n` +
+		`Content-Length: ${self.uploadLength-offset}\r\n` +
+		`\r\n`;
 	var options = {
 		method: 'PATCH',
 		headers: {
 			'Content-Type': 'message/byteranges',
+			// comment in headers, for debugging requests without parsing message body
+			'REM-patch-range': `${offset}-${self.uploadLength-1}/${self.uploadLength}`,
+			'REM-patch-length': `${self.uploadLength-offset}`,
+			'Content-Length': (patchInfo.length + self.uploadLength-offset).toString(),
 		},
 	};
-	var patchRequest = new NativeClientRequest(self.initialRequestContentLocation, options, patchResponse);
+	var patchRequest = new NativeClientRequest(self.initialRequestContentLocation, options);
 	self.currentRequest = patchRequest;
 	self.emit('retryRequest', patchRequest);
 	self.retryUpload.push(patchRequest);
-	patchRequest.write(`Content-Length: ${self.uploadLength-offset}\r\n`);
-	patchRequest.write(`Content-Range: ${offset}-${self.uploadLength-1}/${self.uploadLength}\r\n`);
-	patchRequest.write('\r\n');
-	self._uploadBuffer(offset);
-	function patchResponse(res){
-		res.on('error', function(err){
-			cb(err);
-		});
-		res.on('end', function(){
-			cb();
-		});
-	}
+	patchRequest.write(patchInfo);
+	self._pipeBuffer(offset, function(){
+		if(!self.uploadOpen){
+			self.writeDest.end();
+			self.writeDest = null;
+		}
+	});
+	patchRequest.on('error', function(err){
+		if(cb) cb(err);
+	});
+	patchRequest.on('response', function patchResponse(res){
+		if(res.statusCode==202){
+			// Response was merely accepted, keep going
+			throw new Error('ACCEPTED');
+			return;
+		}else{
+			res.on('end', function(){
+				self.uploadConfirmed = self.uploadLength;
+				if(cb) cb();
+			});
+		}
+	});
 }
 
 
-ResumableClientRequest.prototype._uploadBuffer = function(offsetBytes, cb){
+ResumableClientRequest.prototype._pipeBuffer = function(offsetBytes, cb){
 	var parts = this.uploadBufferParts.length;
-	this.writeDest = this.currentRequest;
-	if(this.writeDestAvailable) this.writeDestAvailable();
-	this.writeDestAvailable = null;
 
-	for(var ii=0, ib=this.uploadBufferOffset; ii<parts && ib+this.uploadBufferParts[ii].length<offsetBytes.length; ii++, ib+=this.uploadBufferParts[ii].length);
+	for(var ii=0, ib=this.uploadBufferOffset; ii<parts && ib+this.uploadBufferParts[ii].length<offsetBytes; ib+=this.uploadBufferParts[ii].length, ii++);
 	if(ii >= parts) return;
 	this.currentRequest.write(this.uploadBufferParts[ii].slice(offsetBytes-ib));
 	for(ii++; ii<parts; ii++){
 		this.currentRequest.write(this.uploadBufferParts[ii]);
 	}
+
+	this.writeDest = this.currentRequest;
+	if(this.writeDestAvailable) this.writeDestAvailable();
+	this.writeDestAvailable = null;
+	cb();
 }
 
+ResumableClientRequest.prototype._restartDownload = function(){
+	var self = this;
+
+	// synchronize state
+	var options = {
+		method: 'GET',
+		// whitelist some known headers, maybe switch to blacklist later
+		headers: {
+		},
+	};
+	var req = new NativeClientRequest(this.initialResponseMessageLocation, options);
+	self.emit('retryRequest', req);
+	req.end();
+	// req.once('error', function(){});
+	req.once('response', function headResponse(res){
+		self.response = new IncomingMessage(res);
+		self._retryDownload();
+	});
+
+}
+
+
 ResumableClientRequest.prototype._retryDownload = function(){
+	console.log('_retryDownload');
+	var self = this;
+	// self.response.push(null);
+	self.response.emit('end');
+	return;
+	// throw new Error('Haven\'t gotten here yet');
+	var self = this;
 	var options = {
 		headers: {
 			'Range': '-/',
 		}
 	};
-	this.currentRequest = new NativeClientRequest(this.url, options, retryDownloadResponse);
-	self.emit('retryRequest', self.currentRequest);
-	this.retryDownload.push(this.currentRequest);
-	this.currentRequest.end();
+	var downloadReq = new NativeClientRequest(this.url, options, retryDownloadResponse);
+	self.emit('retryRequest', downloadReq);
+	this.retryDownload.push(downloadReq);
+	downloadReq.end();
 	function retryDownloadResponse(res){
 		self.emit('retryResponse', res);
 		res.on('data', function(chunk){
-			readableSide.push(chunk);
+			self.response.push(chunk);
 		});
 		res.on('end', function(){
-			readableSide.push(null);
+			self.response.push(null);
 		});
 	}
 };
@@ -221,18 +283,25 @@ ResumableClientRequest.prototype.flushHeaders = function(){
 
 ResumableClientRequest.prototype._write = function(data, encoding, callback){
 	var self = this;
-	this.uploadBufferParts.push(data);
+	if(data){
+		this.uploadBufferParts.push(data);
+		this.uploadBufferLength += data.length;
+	}
+	// console.log('client buffer '+this.uploadBufferLength);
+	this.writeDestAvailable = callback;
 	if(this.writeDest){
-		return this.writeDest.write.call(this.writeDest, data, encoding, callback);
-	}else{
-		this.writeDestAvailable = callback;
+		return this.writeDest.write(data, encoding, function(){
+			self.writeDestAvailable = null;
+			callback();
+		});
 	}
 };
 
-ResumableClientRequest.prototype.end = function(data){
-	if(data) this.write(data);
-	if(this.writeDest===this.initialRequest) this.writeDest.end();
-};
+ResumableClientRequest.prototype._final = function _final(callback){
+	if(this.writeDest) this.writeDest.end();
+	this.writeDest = null;
+	this.uploadOpen = false;
+}
 
 ResumableClientRequest.prototype.abort = function(){
 	return this.initialRequest.abort.apply(this.initialRequest, arguments);

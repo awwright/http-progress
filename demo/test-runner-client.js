@@ -32,7 +32,6 @@ function printResponse(res){
 	}
 	console.error('< ');
 	if(res.pipe) res.pipe(process.stdout);
-	// else console.log(res);
 }
 
 function runTest(id){
@@ -45,29 +44,32 @@ function runTest(id){
 	pipe(req);
 
 	printRequest(req.initialRequest);
+	req.on('information', printResponse);
 	req.on('initialResponse', printResponse);
 
 	req.on('retryRequest', function(req){
 		printRequest(req);
+		req.on('information', printResponse);
 		req.on('response', printResponse);
-	});
-
-	req.on('information', function(info){
-		printResponse(info);
 	});
 
 	return new Promise(function(resolve, reject){
 		req.once('response', function(res){
 			// res.resume();
-			res.pipe(process.stdout);
+			res.on('end', function(){
+				console.error('END');
+			});
 			res.on('end', resolve);
 			res.on('error', reject);
+			res.on('end', function(){
+				console.log('End  test '+id);
+			});
 		});
 	});
 }
 
 async function runAll(){
-	for(var i=0; i<2; i++) await runTest(i);
+	for(var i=0; i<3; i++) await runTest(i);
 }
 
 runAll();
