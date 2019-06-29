@@ -1,10 +1,17 @@
 
 const request = require('./client-lib').request;
-const fs = require('fs');
+const http = require('http');
+var entryUri = process.argv[2] || 'http://localhost:18080';
 
-var filepath = process.argv[2] || 'rfc8446.txt';
-var fileStat = fs.statSync(filepath);
-var file = fs.createReadStream(filepath);
+function pipe(stream){
+	var req = http.request(entryUri+'/test/data');
+	req.end();
+	req.once('response', function(res){
+		stream.setHeader('Content-length', res.headers['content-length']);
+		stream.flushHeaders();
+		res.pipe(stream);
+	})
+}
 
 function printRequest(req){
 	console.error('> '+req.method+' '+req.path+' HTTP/1.1');
@@ -26,27 +33,21 @@ function printResponse(res){
 	console.error('< ');
 }
 
-const req = request('http://localhost:18080/print', {
+const req = request(entryUri+'/test/0', {
 	method: 'POST',
-	host: 'localhost',
-	port: 18080,
-	path: '/print',
-	headers: {
-		'Content-Length': fileStat.size,
-	},
+	headers: {},
 });
-file.pipe(req);
-req.flushHeaders();
+pipe(req);
 
 printRequest(req.initialRequest);
 req.on('response', printResponse);
 
-req.on('retryRequest', function(req){ 
+req.on('retryRequest', function(req){
 	printRequest(req);
 	req.on('response', printResponse);
 });
 
-req.on('information', function(info){ 
+req.on('information', function(info){
 	printResponse(info);
 });
 
