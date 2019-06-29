@@ -10,7 +10,7 @@ HTTP is a stateless protocol, which implies that if a request is interrupted, th
 
  ## Continue Outstanding Request Workflow
 
-When a user-agent wants to make a lengthy upload, it is typical to include `Expect: 100-continue` and wait for the server to validate the request headers before allowing the upload to proceed. In the event the request is interrupted, the server can provide a URI that addresses the location where the request is being buffered or stored.
+When a user-agent wants to make a lengthy upload, it is typical to include `Expect: 100-continue` and wait for the server to validate the request headers before allowing the upload to proceed. This workflow takes advantage of this fact, and along with this response, includes instructions on how to resume the upload if it becomes interrupted, by providing a URI representing the address where the upload is being stored.
 
 The initial request is done with `Expect: 100-continue` with `Prefer: resume`, which will return a `100 Continue` intermediate response with `Request-Content-Location`, `Response-Message-Location`, and/or `Content-Location` headers.
 
@@ -38,12 +38,24 @@ If the client sent `Expect: 100-continue` with a `Prefer: resume` preference, th
 
 If the server does not normally retain the contents of an upload (for example, if the upload is only used to make a digest, or is quickly encrypted), the server MAY choose to only support a HEAD request, if it can respond with the correct `Content-Length` of the upload. GET requests in this case would return `405 (Method Not Allowed)` with an `Allow: HEAD, PATCH` header.
 
+~~~abnf
+Request-Content-Location = URI-reference
+~~~
+
+This is introduced as a header and not a Link relation because it is specific to the specific message, and not necessarily the representation that the request is about.
+
 
 ### Response-Message-Location
 
 This response header specifies the server-specified location where a copy of the final response will be made available at. This document SHOULD be `message/http` (regardless of protocol, including HTTP/2), and MAY include the response body.
 
 This header is used by clients to determine the final result of a request that has been interrupted.
+
+~~~abnf
+Response-Message-Location = URI-reference
+~~~
+
+This is introduced as a header and not a Link relation because it is specific to the specific message, and not necessarily the representation that the request is about.
 
 
 ### "resume" preference
@@ -56,6 +68,20 @@ The `resume` HTTP Preference specifies how a server should handle a request that
 Any presence of the `resume` preference is a request to send `Request-Content-Location`, `Response-Message-Location`, and `Content-Location` headers. An unspecified parameter value defaults to `save-incomplete`.
 
 
+### Acknowledge
+
+This response header is intended to be used in `100 Continue` intermediate responses to confirm to the client that some amount of data has been persisted. Clients MAY use this header to know how far back to keep data buffered, in case it must be re-transmitted.
+
+~~~abnf
+Acknowledge = 1*DIGIT
+~~~
+
+
+### "acknowledge" preference
+
+The "acknowledge" HTTP preference indicates the client would like to receive acknowledgement when the server has saved.
+
+
 ## Security Considerations
 
 ### Privacy concerns
@@ -64,7 +90,9 @@ Using the resumable requests feature potentially makes the request available to 
 
 Origin servers SHOULD mint unpredictable URIs with high entropy, though note that this is not a guarantee of privacy.
 
-An alternative to consider is issuing the `Request-Content-Location` and `Response-Message-Location` with a userinfo component specific to these two resources, which is typically not stored in logs, and can be stored in hashed form on the origin server; the user agent would then make follow-up requests with an `Authorization` header.
+Origin servers SHOULD verify that the user who started the request is the same user resuming the request.
+
+In the absence of user authentication to verify this, an alternative is to send `Request-Content-Location` and `Response-Message-Location` with a userinfo component specific to these two resources, which is typically not stored in logs, and can be stored in hashed form on the origin server; the user agent would then make follow-up requests with an `Authorization` header.
 
 ### State storage
 
