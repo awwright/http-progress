@@ -101,30 +101,42 @@ ResumableClientRequest.prototype._retryUpload = function(){
 	self.emit('retryRequest', headRequest);
 	headRequest.end();
 	function headResponse(headRes){
-		if(!headRes.headers['Content-Length']){
+		if(!headRes.headers['content-length']){
 			// TODO: begin re-uploading from last ACK'd byte in small segments
 			return;
 		}
+		var ackBytes = parseInt(headRes.headers['content-length']);
+		if(!(ackBytes >= 0)){
+			// negative or NaN
+			throw new Error('Unknown Content-Length in response');
+		}
 
-		// Upload new segment
-		var options = {
-			method: 'PATCH',
-			headers: {
-				'Content-Type': 'message/byteranges',
-			},
-		};
-		self.currentRequest = new NativeClientRequest(self.initialRequestContentLocation, options, patchResponse);
-		self.emit('retryRequest', self.currentRequest);
-		self.retryUpload.push(self.currentRequest);
-		self.currentRequest.write('Content-Length: \r\n');
-		self.currentRequest.write('Content-Range: \r\n');
-		self.currentRequest.write('\r\n');
-		// self.
-	}
-	function patchResponse(){
-		self.currentRequest.write();
 	}
 };
+
+ResumableClientRequest.prototype._submitUpload = function(offset, cb){
+	// Upload new segment
+	var options = {
+		method: 'PATCH',
+		headers: {
+			'Content-Type': 'message/byteranges',
+		},
+	};
+	self.currentRequest = new NativeClientRequest(self.initialRequestContentLocation, options, patchResponse);
+	self.emit('retryRequest', self.currentRequest);
+	self.retryUpload.push(self.currentRequest);
+	self.currentRequest.write('Content-Length: \r\n');
+	self.currentRequest.write('Content-Range: \r\n');
+	self.currentRequest.write('\r\n');
+	self._uploadBuffer(ackBytes);
+	function patchResponse(){
+		// If successful, continue with another _submitUpload until fully uploaded
+		// self._submitUpload()
+		// If error, re-sync and retry
+		// self._retryUpload()
+	}
+}
+
 
 ResumableClientRequest.prototype._uploadBuffer = function(offsetBytes, cb){
 	var parts = this.uploadBufferParts.length;
@@ -142,7 +154,7 @@ ResumableClientRequest.prototype._uploadBuffer = function(offsetBytes, cb){
 ResumableClientRequest.prototype._retryDownload = function(){
 	var options = {
 		headers: {
-			'Range': '-/'
+			'Range': '-/',
 		}
 	};
 	this.currentRequest = new NativeClientRequest(this.url, options, retryDownloadResponse);
@@ -191,7 +203,7 @@ ResumableClientRequest.prototype.write = function(data){
 
 ResumableClientRequest.prototype.end = function(data){
 	if(data) this.write(data);
-	// return this.writeDest.end.apply(this.writeDest, arguments);
+	if(this.writeDest===this.initialRequest) this.writeDest.end();
 };
 
 ResumableClientRequest.prototype.abort = function(){

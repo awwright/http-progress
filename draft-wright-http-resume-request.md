@@ -79,7 +79,7 @@ Acknowledge = 1*DIGIT
 
 ### "acknowledge" preference
 
-The "acknowledge" HTTP preference indicates the client would like to receive acknowledgement when the server has saved.
+The "acknowledge" HTTP preference indicates the client would like to receive periodic `100 Continue` responses with an `Acknowledge` header in acknowledgement of received data.
 
 
 ## Security Considerations
