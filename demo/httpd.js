@@ -221,6 +221,7 @@ function request(req, res){
 			res.end();
 			return;
 		}
+		res.setHeader('Allow', 'GET, HEAD, PATCH, DELETE');
 		var state = requests.get(reqId);
 		if(req.method==='GET' || req.method==='HEAD'){
 			return state.renderRequest(req, res);
@@ -230,7 +231,6 @@ function request(req, res){
 			return state.deleteRequest(req, res);
 		}else{
 			res.statusCode = 405;
-			res.setHeader('Allow', 'GET, HEAD, PATCH, DELETE');
 			res.end();
 			return;
 		}
@@ -243,6 +243,7 @@ function request(req, res){
 			res.end();
 			return;
 		}
+		res.setHeader('Allow', 'GET, HEAD, DELETE');
 		var state = requests.get(reqId);
 		if(req.method==='GET' || req.method==='HEAD'){
 			return state.renderStatusDocument(req, res);
@@ -250,7 +251,6 @@ function request(req, res){
 			return state.deleteStatusDocument(req, res);
 		}else{
 			res.statusCode = 405;
-			res.setHeader('Allow', 'GET, HEAD, DELETE');
 			res.end();
 			return;
 		}
@@ -263,6 +263,7 @@ function request(req, res){
 			res.end();
 			return;
 		}
+		res.setHeader('Allow', 'GET, HEAD, DELETE');
 		var state = requests.get(reqId);
 		if(req.method==='GET' || req.method==='HEAD'){
 			return state.renderResponseMessage(req, res);
@@ -270,13 +271,13 @@ function request(req, res){
 			return state.deleteResponseMessage(req, res);
 		}else{
 			res.statusCode = 405;
-			res.setHeader('Allow', 'GET, HEAD, DELETE');
 			res.end();
 			return;
 		}
 	}
 	// New job requests
 	if(req.url === '/print'){
+		res.setHeader('Allow', 'GET, HEAD, POST');
 		if(req.method==='GET' || req.method==='HEAD'){
 			res.setHeader('Content-Type', 'text/plain');
 			if(req.method==='HEAD') return void res.end();
@@ -290,7 +291,6 @@ function request(req, res){
 			return;
 		}else{
 			res.statusCode = 405;
-			res.setHeader('Allow', 'GET, HEAD, POST');
 			res.end();
 			return;
 		}
@@ -303,6 +303,7 @@ function request(req, res){
 			res.end();
 			return;
 		}
+		res.setHeader('Allow', 'GET, HEAD, POST');
 		if(req.method==='GET' || req.method==='HEAD'){
 			res.setHeader('Content-Type', 'text/plain');
 			if(req.method==='HEAD') return void res.end();
@@ -317,13 +318,13 @@ function request(req, res){
 			return;
 		}else{
 			res.statusCode = 405;
-			res.setHeader('Allow', 'GET, HEAD, POST');
 			res.end();
 			return;
 		}
 	}
 	if(req.url === '/test/'){
 		// Show all tests to run
+		res.setHeader('Allow', 'GET, HEAD');
 		if(req.method==='GET' || req.method==='HEAD'){
 			var json = JSON.stringify(testStatus.map(function(item){
 				return item.href;
@@ -336,13 +337,13 @@ function request(req, res){
 			return;
 		}else{
 			res.statusCode = 405;
-			res.setHeader('Allow', 'GET, HEAD');
 			res.end();
 			return;
 		}
 	}
 	if(req.url === '/test/data'){
 		// Generate a list of numbers, which provides very predictable output for the server to test
+		res.setHeader('Allow', 'GET, HEAD');
 		if(req.method==='GET' || req.method==='HEAD'){
 			res.setHeader('Content-Type', 'text/plain');
 			res.setHeader('Content-Length', '1000000');
@@ -354,12 +355,12 @@ function request(req, res){
 			return;
 		}else{
 			res.statusCode = 405;
-			res.setHeader('Allow', 'GET, HEAD');
 			res.end();
 			return;
 		}
 	}
 	if(req.url === '/test/status'){
+		res.setHeader('Allow', 'GET, HEAD, POST');
 		if(req.method==='GET' || req.method==='HEAD'){
 			res.setHeader('Content-Type', 'application/json');
 			res.end(JSON.stringify(testStatus,null,'\t'));
@@ -372,12 +373,12 @@ function request(req, res){
 			return;
 		}else{
 			res.statusCode = 405;
-			res.setHeader('Allow', 'GET, HEAD, POST');
 			res.end();
 			return;
 		}
 	}
 	if(req.url === '/test/reset'){
+		res.setHeader('Allow', 'GET, HEAD, POST');
 		if(req.method==='GET' || req.method==='HEAD'){
 			res.setHeader('Content-Type', 'text/plain');
 			if(req.method==='HEAD') return void res.end();
@@ -388,7 +389,6 @@ function request(req, res){
 			return;
 		}else{
 			res.statusCode = 405;
-			res.setHeader('Allow', 'GET, HEAD, POST');
 			res.end();
 			return;
 		}
