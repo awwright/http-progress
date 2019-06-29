@@ -20,8 +20,7 @@ function ResumableClientRequest(url, options, cb){
 	this.options = options;
 	this.cb = cb;
 	this.initialRequest = new NativeClientRequest(url, options);
-	this.initialRequestCorked = true;
-	this.initialRequestResponse = false;
+	this.initialResponse = null;
 	this.currentRequest = this.initialRequest;
 	this.writeDest = null;
 	this.initialRequest.setHeader('Prefer', 'resume');
@@ -34,10 +33,10 @@ function ResumableClientRequest(url, options, cb){
 	this.uploadBufferLength = 0;
 
 	this.initialRequest.on('response', function(res){
-		self.initialRequestResponse = true;
+		self.initialResponse = res;
 		self.emit('response', res);
+		self.emit('initialResponse', res);
 		res.on('end', function(){
-			// console.log('end', this.initialRequest.aborted);
 			self.emit('end');
 		})
 	});
@@ -72,7 +71,7 @@ function ResumableClientRequest(url, options, cb){
 	}
 
 	this.initialRequest.on('error', function(err){ 
-		if(self.initialRequestResponse===false){
+		if(self.initialResponse===false){
 			if(self.initialRequestContentLocation){
 				self._retryUpload();
 			}else{
@@ -110,7 +109,15 @@ ResumableClientRequest.prototype._retryUpload = function(){
 			// negative or NaN
 			throw new Error('Unknown Content-Length in response');
 		}
-
+		self._submitUpload(ackBytes, function(err){
+			if(err){
+				// If successful, continue with another _submitUpload until fully uploaded
+				self._retryUpload();
+			}else{
+				// If error, re-sync and retry
+				self._submitUpload();
+			}
+		});
 	}
 };
 
@@ -122,18 +129,21 @@ ResumableClientRequest.prototype._submitUpload = function(offset, cb){
 			'Content-Type': 'message/byteranges',
 		},
 	};
-	self.currentRequest = new NativeClientRequest(self.initialRequestContentLocation, options, patchResponse);
+	var patchRequest = new NativeClientRequest(self.initialRequestContentLocation, options, patchResponse);
+	self.currentRequest = patchRequest;
 	self.emit('retryRequest', self.currentRequest);
 	self.retryUpload.push(self.currentRequest);
-	self.currentRequest.write('Content-Length: \r\n');
-	self.currentRequest.write('Content-Range: \r\n');
-	self.currentRequest.write('\r\n');
-	self._uploadBuffer(ackBytes);
-	function patchResponse(){
-		// If successful, continue with another _submitUpload until fully uploaded
-		// self._submitUpload()
-		// If error, re-sync and retry
-		// self._retryUpload()
+	patchRequest.write('Content-Length: \r\n');
+	patchRequest.write('Content-Range: \r\n');
+	patchRequest.write('\r\n');
+	self._uploadBuffer(offset);
+	function patchResponse(res){
+		res.on('error', function(err){
+			cb(err);
+		});
+		res.on('end', function(){
+			cb();
+		});
 	}
 }
 
@@ -195,8 +205,8 @@ ResumableClientRequest.prototype.write = function(data){
 			this.writeDest.once('drain', function(){
 				self.emit('drain');
 			});
-			return false;
 		}
+		return writable;
 	}
 	return false;
 };

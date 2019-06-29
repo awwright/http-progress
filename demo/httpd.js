@@ -88,6 +88,7 @@ RequestState.prototype.init = function init(req, res){
 		res._writeRaw(`HTTP/1.1 199 Acknowledge end\r\n`);
 		res._writeRaw(`\r\n`);
 		// Determine if uploaded size equals expected
+		res.end("Processing\r\n");
 	});
 };
 

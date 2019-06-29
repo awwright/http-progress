@@ -34,6 +34,7 @@ function printResponse(res){
 }
 
 function runTest(id){
+	console.log('Run test '+id);
 	const req = request(entryUri+'/test/'+id, {
 		method: 'POST',
 		headers: {},
@@ -41,7 +42,7 @@ function runTest(id){
 	pipe(req);
 
 	printRequest(req.initialRequest);
-	req.on('response', printResponse);
+	req.on('initialResponse', printResponse);
 
 	req.on('retryRequest', function(req){
 		printRequest(req);
@@ -53,8 +54,11 @@ function runTest(id){
 	});
 
 	return new Promise(function(resolve, reject){
-		req.on('end', resolve);
-		req.on('error', reject);
+		req.once('response', function(res){
+			res.resume();
+			res.on('end', resolve);
+			res.on('error', reject);
+		});
 	});
 }
 
