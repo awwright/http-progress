@@ -33,24 +33,33 @@ function printResponse(res){
 	console.error('< ');
 }
 
-const req = request(entryUri+'/test/0', {
-	method: 'POST',
-	headers: {},
-});
-pipe(req);
+function runTest(id){
+	const req = request(entryUri+'/test/'+id, {
+		method: 'POST',
+		headers: {},
+	});
+	pipe(req);
 
-printRequest(req.initialRequest);
-req.on('response', printResponse);
-
-req.on('retryRequest', function(req){
-	printRequest(req);
+	printRequest(req.initialRequest);
 	req.on('response', printResponse);
-});
 
-req.on('information', function(info){
-	printResponse(info);
-});
+	req.on('retryRequest', function(req){
+		printRequest(req);
+		req.on('response', printResponse);
+	});
 
-req.on('end', function(){
-	console.log('Done');
-});
+	req.on('information', function(info){
+		printResponse(info);
+	});
+
+	return new Promise(function(resolve, reject){
+		req.on('end', resolve);
+		req.on('error', reject);
+	});
+}
+
+async function runAll(){
+	for(var i=0; i<2; i++) await runTest(i);
+}
+
+runAll();

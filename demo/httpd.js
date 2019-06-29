@@ -28,6 +28,7 @@ var requestCount = 0;
 
 // List of flags to apply to each request
 var testSuite = [
+	{},
 	{interruptInitialUpload: true},
 ];
 
@@ -66,8 +67,8 @@ RequestState.prototype.init = function init(req, res){
 	// TODO fully parse this header
 	if(req.headers['prefer']){
 		res._writeRaw('HTTP/1.1 100 Continue\r\n');
-		res._writeRaw(`Request-Content-Location: /req/${this.reqId}.req\r\n`);
-		res._writeRaw(`Response-Message-Location: /req/${this.reqId}.res\r\n`);
+		res._writeRaw(`Request-Content-Location: /job/${this.reqId}.req\r\n`);
+		res._writeRaw(`Response-Message-Location: /job/${this.reqId}.res\r\n`);
 		res._writeRaw(`\r\n`);
 	}
 	req.on('data', function(segment){
@@ -186,7 +187,7 @@ RequestState.prototype.patchRequest = function patchRequest(req, res){
 		console.error('End');
 		if(self.requestPayload.length === self.requestPayloadRead){
 			res.statusCode = 202;
-			res.setHeader('Location', `/req/${self.reqId}.job`);
+			res.setHeader('Location', `/job/${self.reqId}.job`);
 			return res.end();
 		}else{
 			res.statusCode = IncompleteResource;
@@ -386,6 +387,7 @@ function request(req, res){
 			return;
 		}else if(req.method==='POST'){
 			resetTestStatus();
+			res.end();
 			return;
 		}else{
 			res.statusCode = 405;

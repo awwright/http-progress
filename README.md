@@ -40,7 +40,10 @@ If the final headers have been written but the payload transfer was interrupted,
 
 This includes a proof-of-concept written for Node.js. As of Node.js v12.4.0, a patch is required to expose headers in 1xx intermediate status requests.
 
-* demo/httpd.js - Server implementing resumable requests, the byteranges PATCH type, and progress of long-running responses. For testing purposes, POST requests are reset after 200000 bytes.
+* demo/client-lib.js - Simple library similar to Node.js http.request
+* demo/httpd.js - Server implementing resumable requests, the byteranges PATCH type, and progress of long-running responses, and a test suite with various endpoints that respond in different ways
+* demo/test-run-suite.sh - start a server and run all the clients
+* demo/test-runner-client.sh - connect to and run the server's testing endpoints
 
 
 ## Example
@@ -64,8 +67,8 @@ The client now waits for a 100-continue response:
 
 ~~~http
 HTTP/1.1 100 Continue
-Request-Content-Location: http://example.com/requests/1.request
-Response-Message-Location: http://example.com/requests/1.response
+Request-Content-Location: http://example.com/job/1.request
+Response-Message-Location: http://example.com/job/1.response
 ~~~
 
 With `100 Continue` in hand, the client begins uploading. However, somewhere along the way, the connection was lost, resulting in the server only receiving the first three bytes (a curly brace, and ␍␊ line-terminating sequence):
@@ -79,7 +82,7 @@ With `100 Continue` in hand, the client begins uploading. However, somewhere alo
 At this point, the client doesn't know exactly how many bytes the server actually received, so it makes a HEAD request to the request-content-location:
 
 ~~~http
-HEAD http://example.com/requests/1.request HTTP/1.1
+HEAD http://example.com/job/1.request HTTP/1.1
 
 ~~~
 
@@ -99,7 +102,7 @@ Now the client knows only the first three bytes were received by the server. The
 The client writes out a segment of the original upload using a PATCH request to the request-content-location:
 
 ~~~http
-PATCH http://example.com/requests/1.request HTTP/1.1
+PATCH http://example.com/job/1.request HTTP/1.1
 Content-Type: message/byteranges
 Content-Length: {length}
 
@@ -116,7 +119,7 @@ The server responds with the `2__ (Incomplete Content)` status code, indicating 
 The server writes out the remainder of the request using a PATCH request to the request-content-location:
 
 ~~~http
-PATCH http://example.com/requests/1.request HTTP/1.1
+PATCH http://example.com/job/1.request HTTP/1.1
 Content-Type: message/byteranges
 
 Content-Type: application/json
