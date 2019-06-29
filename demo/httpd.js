@@ -185,7 +185,6 @@ RequestState.prototype.patchRequest = function patchRequest(req, res){
 		}
 	});
 	req.on('end', function(){
-		console.error('End');
 		if(self.requestPayload.length === self.requestPayloadRead){
 			res.statusCode = 202;
 			res.setHeader('Location', `/job/${self.reqId}.job`);
@@ -216,7 +215,7 @@ function request(req, res){
 	}
 	var m;
 	// Resources representing an outstanding request
-	if(m = req.url.match(/^\/req\/(\d+)\.req$/)){
+	if(m = req.url.match(/^\/job\/(\d+)\.req$/)){
 		var reqId = parseInt(m[1]);
 		if(!requests.has(reqId)){
 			res.writeHead(404);
@@ -238,7 +237,7 @@ function request(req, res){
 		}
 	}
 	// Resources representing the status of an ongoing job
-	if(m = req.url.match(/^\/req\/(\d+)\.job$/)){
+	if(m = req.url.match(/^\/job\/(\d+)\.job$/)){
 		var reqId = parseInt(m[1]);
 		if(!requests.has(reqId)){
 			res.writeHead(404);
@@ -258,7 +257,7 @@ function request(req, res){
 		}
 	}
 	// Resources representing the final response for a job
-	if(m = req.url.match(/^\/req\/(\d+)\.res$/)){
+	if(m = req.url.match(/^\/job\/(\d+)\.res$/)){
 		var reqId = parseInt(m[1]);
 		if(!requests.has(reqId)){
 			res.writeHead(404);

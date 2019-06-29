@@ -31,9 +31,12 @@ function printResponse(res){
 		console.error('< '+res.rawHeaders[i]+': '+res.rawHeaders[i+1]);
 	}
 	console.error('< ');
+	if(res.pipe) res.pipe(process.stdout);
+	// else console.log(res);
 }
 
 function runTest(id){
+	console.log('');
 	console.log('Run test '+id);
 	const req = request(entryUri+'/test/'+id, {
 		method: 'POST',
@@ -55,7 +58,8 @@ function runTest(id){
 
 	return new Promise(function(resolve, reject){
 		req.once('response', function(res){
-			res.resume();
+			// res.resume();
+			res.pipe(process.stdout);
 			res.on('end', resolve);
 			res.on('error', reject);
 		});

@@ -1,8 +1,8 @@
 
 var inherits = require('util').inherits;
-// var OutgoingMessage = require('http').OutgoingMessage;
+var IncomingMessage = require('http').IncomingMessage;
 var NativeClientRequest = require('http').ClientRequest;
-var EventEmitter = require('events').EventEmitter;
+var Writable = require('stream').Writable;
 var uriResolve = require('url').resolve;
 
 module.exports.request = function request(url, options, cb) {
@@ -10,19 +10,21 @@ module.exports.request = function request(url, options, cb) {
 };
 
 // inherits(ResumableClientRequest, OutgoingMessage);
-inherits(ResumableClientRequest, EventEmitter);
+inherits(ResumableClientRequest, Writable);
 function ResumableClientRequest(url, options, cb){
 	var self = this;
 	if(typeof url!=='string') throw new Error('`url` must be of type string');
 	// OutgoingMessage.call(this);
-	EventEmitter.call(this);
+	Writable.call(this);
 	this.url = url;
 	this.options = options;
 	this.cb = cb;
 	this.initialRequest = new NativeClientRequest(url, options);
 	this.initialResponse = null;
+	this.response = null;
 	this.currentRequest = this.initialRequest;
 	this.writeDest = null;
+	this.writeDestAvailable = null;
 	this.initialRequest.setHeader('Prefer', 'resume');
 	this.retryUpload = [];
 	this.retryDownload = [];
@@ -34,11 +36,24 @@ function ResumableClientRequest(url, options, cb){
 
 	this.initialRequest.on('response', function(res){
 		self.initialResponse = res;
-		self.emit('response', res);
+		const readableSide = self.response = new IncomingMessage(res);
+		readableSide.httpVersion = res.httpVersion;
+		readableSide.httpVersionMinor = res.httpVersionMinor;
+		readableSide.httpVersionMajor = res.httpVersionMajor;
+		readableSide.headers = res.headers;
+		readableSide.rawHeaders = res.rawHeaders;
+		var error = null;
+		self.emit('response', readableSide);
 		self.emit('initialResponse', res);
+		res.on('data', function(chunk){
+			readableSide.push(chunk);
+		});
+		res.on('error', function(err){
+			error = err;
+		});
 		res.on('end', function(){
-			self.emit('end');
-		})
+			if(!error) readableSide.push(null);
+		});
 	});
 
 	if (cb) {
@@ -71,7 +86,7 @@ function ResumableClientRequest(url, options, cb){
 	}
 
 	this.initialRequest.on('error', function(err){ 
-		if(self.initialResponse===false){
+		if(self.initialResponse===null){
 			if(self.initialRequestContentLocation){
 				self._retryUpload();
 			}else{
@@ -122,6 +137,7 @@ ResumableClientRequest.prototype._retryUpload = function(){
 };
 
 ResumableClientRequest.prototype._submitUpload = function(offset, cb){
+	var self = this;
 	// Upload new segment
 	var options = {
 		method: 'PATCH',
@@ -131,10 +147,10 @@ ResumableClientRequest.prototype._submitUpload = function(offset, cb){
 	};
 	var patchRequest = new NativeClientRequest(self.initialRequestContentLocation, options, patchResponse);
 	self.currentRequest = patchRequest;
-	self.emit('retryRequest', self.currentRequest);
-	self.retryUpload.push(self.currentRequest);
-	patchRequest.write('Content-Length: \r\n');
-	patchRequest.write('Content-Range: \r\n');
+	self.emit('retryRequest', patchRequest);
+	self.retryUpload.push(patchRequest);
+	patchRequest.write(`Content-Length: ${self.uploadLength-offset}\r\n`);
+	patchRequest.write(`Content-Range: ${offset}-${self.uploadLength-1}/${self.uploadLength}\r\n`);
 	patchRequest.write('\r\n');
 	self._uploadBuffer(offset);
 	function patchResponse(res){
@@ -151,7 +167,8 @@ ResumableClientRequest.prototype._submitUpload = function(offset, cb){
 ResumableClientRequest.prototype._uploadBuffer = function(offsetBytes, cb){
 	var parts = this.uploadBufferParts.length;
 	this.writeDest = this.currentRequest;
-	this.emit('drain');
+	if(this.writeDestAvailable) this.writeDestAvailable();
+	this.writeDestAvailable = null;
 
 	for(var ii=0, ib=this.uploadBufferOffset; ii<parts && ib+this.uploadBufferParts[ii].length<offsetBytes.length; ii++, ib+=this.uploadBufferParts[ii].length);
 	if(ii >= parts) return;
@@ -172,7 +189,13 @@ ResumableClientRequest.prototype._retryDownload = function(){
 	this.retryDownload.push(this.currentRequest);
 	this.currentRequest.end();
 	function retryDownloadResponse(res){
-
+		self.emit('retryResponse', res);
+		res.on('data', function(chunk){
+			readableSide.push(chunk);
+		});
+		res.on('end', function(){
+			readableSide.push(null);
+		});
 	}
 };
 
@@ -196,19 +219,14 @@ ResumableClientRequest.prototype.flushHeaders = function(){
 	return this.initialRequest.flushHeaders.apply(this.initialRequest, arguments);
 };
 
-ResumableClientRequest.prototype.write = function(data){
+ResumableClientRequest.prototype._write = function(data, encoding, callback){
 	var self = this;
 	this.uploadBufferParts.push(data);
 	if(this.writeDest){
-		var writable = this.writeDest.write.apply(this.writeDest, arguments);
-		if(writable===false){
-			this.writeDest.once('drain', function(){
-				self.emit('drain');
-			});
-		}
-		return writable;
+		return this.writeDest.write.call(this.writeDest, data, encoding, callback);
+	}else{
+		this.writeDestAvailable = callback;
 	}
-	return false;
 };
 
 ResumableClientRequest.prototype.end = function(data){
