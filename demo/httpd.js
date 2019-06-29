@@ -5,7 +5,7 @@
 // This demonstrates how canceled uploads may be resumed, and
 // how the progress of accepted jobs may be tracked until completion.
 
-// The </print> endpoint accepts POST requests with .txt documents.
+// The </print> endpoint accepts POST requests with plain text documents.
 // It stream parses the input document for correct line length and page separations.
 // Then it spools the job to the printer, returning 102 Progress events as updates are available.
 
@@ -51,6 +51,8 @@ RequestState.prototype.init = function init(req, res){
         res._writeRaw(`\r\n`);
         if(self.requestPayloadRead > 200000){
             // Interrupt the connection after reading a certain amount of bytes
+            res._writeRaw(`HTTP/1.1 199 Bye\r\n`);
+            console.error('Destroying client connection');
             res.socket.destroy();
         }
     });
