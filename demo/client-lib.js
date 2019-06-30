@@ -35,6 +35,10 @@ function ResumableClientRequest(url, options, cb){
 	this.uploadBufferOffset = 0;
 	this.uploadBufferLength = 0;
 	this.uploadOpen = true;
+	this.downloadMessageRead = 0; // Bytes successfully read from download message
+	this.downloadContentRead = 0; // Bytes successfully read from download message-body
+	this.method = options.method;
+	this.path = options.path;
 
 	this.initialRequest.on('response', function(res){
 		self.initialResponse = res;
@@ -69,7 +73,8 @@ function ResumableClientRequest(url, options, cb){
 			beginUpload(info);
 		}
 	});
-	var timeoutId = setTimeout(beginUpload, 1000);
+	var timeoutId = null;
+	// var timeoutId = setTimeout(beginUpload, 1000);
 	function beginUpload(info){
 		if(timeoutId!==null){
 			clearTimeout(timeoutId);
@@ -77,7 +82,7 @@ function ResumableClientRequest(url, options, cb){
 		}
 		if(self.initialRequestUploadStarted) return;
 		self.initialRequestUploadStarted = true;
-		if(info.headers){
+		if(info && info.headers){
 			if(typeof info.headers['request-content-location']==='string'){
 				self.initialRequestContentLocation = uriResolve(self.url, info.headers['request-content-location']);
 			}
@@ -181,15 +186,13 @@ ResumableClientRequest.prototype._submitUpload = function(offset, cb){
 		if(cb) cb(err);
 	});
 	patchRequest.on('response', function patchResponse(res){
-		if(res.statusCode==202){
-			// Response was merely accepted, keep going
-			throw new Error('ACCEPTED');
-			return;
-		}else{
+		if(res.statusCode >= 200 && res.statusCode <= 299){
+			self.uploadConfirmed = self.uploadLength;
 			res.on('end', function(){
-				self.uploadConfirmed = self.uploadLength;
 				if(cb) cb();
 			});
+		}else{
+			cb(new Error('Unexpected error during _submitUpload'));
 		}
 	});
 }
@@ -225,21 +228,75 @@ ResumableClientRequest.prototype._restartDownload = function(){
 	self.emit('retryRequest', req);
 	req.end();
 	// req.once('error', function(){});
-	req.once('response', function headResponse(res){
-		self.response = new IncomingMessage(res);
-		self._retryDownload();
+	req.once('response', function(res){
+		if(!res.headers['content-type'] || res.headers['content-type']!=='message/http'){
+			self.emit('error', new Error('Unknown media type for Response-Message-Location'));
+			return;
+		}
+		var buffer = new Uint8Array(0);
+		var state = 'status-line';
+		var httpVersionMajor, httpVersionMinor, statusCode, statusMessage;
+		var messageHeaders = {};
+		var rawHeaders = [];
+		var readableSide;
+		res.on('data', function(data){
+			self.downloadMessageRead += data.length;
+			buffer = Buffer.concat([buffer, data]);
+			while(buffer.length){
+				if(state==='status-line'){
+					var crlf = buffer.indexOf("\r\n");
+					if(crlf<0 && buffer.length>1000) throw new Error('Status-line too long');
+					var line = buffer.slice(0, crlf).toString().match(/^HTTP\/(\d)\.(\d) (\d{3}) ([A-Za-z-]+)$/);
+					httpVersionMajor = line[1];
+					httpVersionMinor = line[2];
+					statusCode = line[3];
+					statusMessage = line[4];
+					buffer = buffer.slice(crlf + 2);
+					state = 'header-line';
+				}else if(state==='header-line'){
+					var crlf = buffer.indexOf("\r\n");
+					if(crlf===0){
+						// Blank line, end of headers
+						state = 'message-body';
+						haveHeaders();
+						buffer = buffer.slice(2);
+						continue;
+					}
+					var line = buffer.slice(0, crlf).toString().match(/^([A-Za-z-]+): (.*)$/);
+					var headerName = line[1];
+					var headerValue = line[2];
+					messageHeaders[headerName.toLowerCase()] = headerValue;
+					rawHeaders.push(headerName);
+					rawHeaders.push(headerValue);
+					buffer = buffer.slice(crlf + 2);
+				}else if(state==='message-body'){
+					readableSide.push(buffer);
+					self.downloadContentRead += buffer.length;
+					buffer = Buffer.alloc(0);
+					return;
+				}else{
+					throw new Error('Unknown state');
+				}
+			}
+		});
+		function haveHeaders(){
+			readableSide = self.response = new IncomingMessage(res);
+			readableSide.httpVersion = httpVersionMajor + '.' + httpVersionMinor;
+			readableSide.httpVersionMajor = parseInt(httpVersionMajor);
+			readableSide.httpVersionMinor = parseInt(httpVersionMinor);
+			readableSide.statusCode = statusCode;
+			readableSide.statusMessage = statusMessage;
+			readableSide.headers = messageHeaders;
+			readableSide.rawHeaders = rawHeaders;
+			self.emit('response', readableSide);
+		}
+		res.on('end', function(){
+			self.response.push(null);
+		});
 	});
-
 }
 
-
 ResumableClientRequest.prototype._retryDownload = function(){
-	console.log('_retryDownload');
-	var self = this;
-	// self.response.push(null);
-	self.response.emit('end');
-	return;
-	// throw new Error('Haven\'t gotten here yet');
 	var self = this;
 	var options = {
 		headers: {
@@ -313,6 +370,10 @@ ResumableClientRequest.prototype.destroy = function(){
 
 ResumableClientRequest.prototype.getHeader = function(){
 	return this.initialRequest.getHeader.apply(this.initialRequest, arguments);
+};
+
+ResumableClientRequest.prototype.getHeaders = function(){
+	return this.initialRequest.getHeaders.apply(this.initialRequest, arguments);
 };
 
 ResumableClientRequest.prototype.removeHeader = function(){	

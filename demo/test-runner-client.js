@@ -41,28 +41,26 @@ function runTest(id){
 		method: 'POST',
 		headers: {},
 	});
+	printRequest(req);
 	pipe(req);
 
-	printRequest(req.initialRequest);
-	req.on('information', printResponse);
-	req.on('initialResponse', printResponse);
-
-	req.on('retryRequest', function(req){
-		printRequest(req);
-		req.on('information', printResponse);
-		req.on('response', printResponse);
-	});
+	// printRequest(req.initialRequest);
+	// req.on('information', printResponse);
+	// req.on('initialResponse', printResponse);
+	// req.on('retryRequest', function(req){
+	// 	printRequest(req);
+	// 	req.on('information', printResponse);
+	// 	req.on('response', printResponse);
+	// });
 
 	return new Promise(function(resolve, reject){
 		req.once('response', function(res){
-			// res.resume();
-			res.on('end', function(){
-				console.error('END');
-			});
+			// console.log('Have response:', res);
+			printResponse(res);
 			res.on('end', resolve);
 			res.on('error', reject);
 			res.on('end', function(){
-				console.log('End  test '+id);
+				console.log('End test '+id);
 			});
 		});
 	});

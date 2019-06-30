@@ -47,9 +47,10 @@ function resetTestStatus(){
 }
 resetTestStatus();
 
-function RequestState(reqId, req){
+function RequestState(reqId, req, res){
 	this.reqId = reqId;
 	this.req = req;
+	this.res = res;
 	this.jobPayloadRead = 0;
 	this.jobPayload = null;
 	// Flags to change behavior
@@ -99,10 +100,10 @@ RequestState.prototype.init = function init(req, res){
 			res.socket.destroy();
 		}
 	});
-	req.on('end', function(segment){
+	req.on('end', function(){
 		res._writeRaw(`HTTP/1.1 199 Acknowledge end\r\n`);
 		res._writeRaw(`\r\n`);
-		self.executeJob(res);
+		self.executeJob();
 	});
 };
 
@@ -220,10 +221,11 @@ RequestState.prototype.patchRequest = function patchRequest(req, res){
 			return res.end('Under-size patch body.\r\n');
 		}
 		if(self.jobPayload.length === self.jobPayloadRead){
-			// res.statusCode = 202;
+			res.statusCode = 202;
 			// res.setHeader('Location', `/job/${self.reqId}.job`);
-			// return res.end();
-			self.executeJob(res);
+			self.executeJob(function(){
+				res.end();
+			});
 		}else{
 			res.statusCode = IncompleteResource;
 			res.statusMessage = 'Incomplete Resource';
@@ -234,15 +236,26 @@ RequestState.prototype.patchRequest = function patchRequest(req, res){
 	});
 }
 
-RequestState.prototype.executeJob = function executeJob(res){
+RequestState.prototype.executeJob = function executeJob(cb){
 	// Determine if uploaded size equals expected
-	res.end("Job received\r\n");
+	this.res.setHeader('Content-Type', 'text/plain');
+	this.res.body = "Job received\r\n";
+	return void cb();
 }
 
 RequestState.prototype.renderResponseMessage = function renderResponseMessage(req, res){
 	// Output the current status of the request
-	res.statusCode = 200;
-	res.end();
+	res.setHeader('Content-Type', 'message/http');
+	res.write('HTTP/1.1 '+this.res.statusCode+' '+this.res.statusMessage+'\r\n');
+	var headers = this.res.getHeaders();
+	for(var k in headers){
+		if(typeof headers[k]==='string') res.write(k+': '+headers[k]+'\r\n');
+		else if(Array.isArray(headers[k])) headers[k].forEach(function(v){
+			res.write(k+': '+v+'\r\n');
+		});
+	}
+	res.write('\r\n');
+	res.end(this.res.body);
 }
 
 RequestState.prototype.renderStatusDocument = function renderStatusDocument(req, res){
@@ -330,7 +343,7 @@ function request(req, res){
 			return;
 		}else if(req.method==='POST'){
 			var reqId = requestCount++;
-			var state = new RequestState(reqId, req);
+			var state = new RequestState(reqId, req, res);
 			requests.set(reqId, state);
 			state.init(req, res);
 			return;
@@ -356,10 +369,10 @@ function request(req, res){
 			return;
 		}else if(req.method==='POST'){
 			var reqId = requestCount++;
-			var state = new RequestState(reqId, req);
+			var state = new RequestState(reqId, req, res);
 			requests.set(reqId, state);
 			state.flags = testSuite[testId];
-			state.executeJob = function executeJob(res){
+			state.executeJob = function executeJob(cb){
 				for(var i=0, s=''; i<100000; i++){
 					if(this.jobPayload.slice(i*10, i*10+10).toString() !== (('0000000'+i).substr(-8)+'\r\n') ){
 						testStatus[testId].status = "fail";
@@ -369,7 +382,9 @@ function request(req, res){
 					}
 				}
 				testStatus[testId].status = "pass";
-				res.end("Test passed\r\n");
+				this.res.setHeader('Content-Type', 'text/plain');
+				this.res.body = "Finished job result!\r\n";
+				return void cb();
 			};
 			state.init(req, res);
 			return;
