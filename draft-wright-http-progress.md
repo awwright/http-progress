@@ -199,20 +199,23 @@ A Location header SHOULD be sent in the first `102 Processing` response, as well
 The "Progress" header is used to indicate the current progress on an operation being run by the origin server. Use of this header implies the server supports `102 Processing` responses and the `processing` preference.
 
 ~~~ abnf
-Progress        = 1*DIGIT "/" [ 1*DIGIT ] [ WS progress-remark ]
-progress-remark = comment / quoted-string / ext-value
+Progress        = fraction *( WS progress-remark )
+progress-remark = fraction / comment / quoted-string / ext-value
+fraction        = 1*DIGIT "/" [ 1*DIGIT ]
 comment         = <comment, see [RFC7230], Section 3.2.6>
 quoted-string   = <quoted-string, see [RFC7230], Section 3.2.6>
 ext-value       = <ext-value, see [RFC8187]>
 ~~~
 
-The Progress header includes three datum: A numerator, a denominator, and a message.
+The Progress header lists data about the current operation and summarizes operations that have finished.
 
-The numerator specifies the number of sub-operations that have completed. The numerator MUST NOT decrease in value.
+The numerator specifies the number of sub-operations that have completed. It may also represent the zero-indexed ID of the current operation. The numerator MUST NOT decrease in value.
 
 The denominator specifies the total expected operations to be completed before a final status code can be delivered. If specified, the denominator MUST NOT be smaller than the numerator. If the length of the operation is unknown, it may be omitted. If additional tasks need to be performed, the denominator MAY increase.
 
-The message is some sort of remark indicating the current task being carried out. If multiple files are being operated on, this might refer to the most recent file to be opened. Three forms are provided:
+The message is some sort of remark indicating the current task being carried out. If multiple files are being operated on, this might refer to the most recent file to be opened. Four forms are provided:
+
+* Use of additional "fraction" productions are permitted to indicate progress on a subordinate operation. For example, a data transfer in progress as part of a multi-step operation.
 
 * Use of the "comment" production implies the text is not intended for end users.
 
@@ -220,13 +223,15 @@ The message is some sort of remark indicating the current task being carried out
 
 * Use of a quoted-string is also supported if the text is entirely 7-bit ASCII. This is suitable for reporting filenames or similar data.
 
+Multiple remarks MAY be used. Remarks MUST be listed in decending significance; if multiple fractions are presented, latter remarks describing an operation identified by the previous fraction.
+
 Example usage:
 
 ~~~ example
 Progress: 0/1
-Progress: 88020/85918489 (bytes)
+Progress: 66/ (tries) utf-8'en'Generating%20prime%20number
 Progress: 5/16 UTF-8'ja-JP'%e9%a3%9f%e3%81%b9%e3%81%a6
-Progress: 3/20 "POST http://example.com/item/3"
+Progress: 3/20 "POST http://example.com/item/3" 8020/8591489 (bytes)
 
 ~~~
 
