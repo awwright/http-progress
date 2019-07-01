@@ -2,6 +2,7 @@
 const request = require('./client-lib').request;
 const http = require('http');
 var entryUri = process.argv[2] || 'http://localhost:18080';
+var verbose = false;
 
 function pipe(stream){
 	var req = http.request(entryUri+'/test/data');
@@ -44,30 +45,39 @@ function runTest(id){
 	printRequest(req);
 	pipe(req);
 
-	// printRequest(req.initialRequest);
-	// req.on('information', printResponse);
-	// req.on('initialResponse', printResponse);
-	// req.on('retryRequest', function(req){
-	// 	printRequest(req);
-	// 	req.on('information', printResponse);
-	// 	req.on('response', printResponse);
-	// });
+	if(verbose){
+		printRequest(req.initialRequest);
+		req.on('information', printResponse);
+		req.on('initialResponse', printResponse);
+		req.on('retryRequest', function(req){
+			printRequest(req);
+			req.on('information', printResponse);
+			req.on('response', printResponse);
+		});
+	}
 
 	return new Promise(function(resolve, reject){
-		req.once('response', function(res){
+		req.on('response', function(res){
 			// console.log('Have response:', res);
+			var data = '';
 			printResponse(res);
-			res.on('end', resolve);
-			res.on('error', reject);
+			res.on('data', function(block){
+				data += block.toString();
+			});
 			res.on('end', function(){
+				if(data!=='Finished job result!\r\n'){
+					reject(new Error('Incorrect response'));
+				}
 				console.log('End test '+id);
 			});
+			res.on('end', resolve);
+			res.on('error', reject);
 		});
 	});
 }
 
 async function runAll(){
-	for(var i=0; i<3; i++) await runTest(i);
+	for(var i=0; i<1; i++) await runTest(i);
 }
 
 runAll();

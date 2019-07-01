@@ -78,7 +78,7 @@ RequestState.prototype.init = function init(req, res){
 	}
 	if(this.flags.interruptContinue && !this.interruptContinueTrip){
 		this.interruptContinueTrip = true;
-		console.error('Destroying client connection');
+		// console.error('Destroying client connection');
 		res.socket.destroy();
 	}
 	// TODO fully parse this header
@@ -96,14 +96,18 @@ RequestState.prototype.init = function init(req, res){
 		res._writeRaw(`\r\n`);
 		if(self.flags.interruptInitialUpload && self.jobPayloadRead > 100000){
 			// Interrupt the connection after reading a certain amount of bytes
-			console.error('Destroying client connection');
+			// console.error('Destroying client connection');
 			res.socket.destroy();
 		}
 	});
 	req.on('end', function(){
-		res._writeRaw(`HTTP/1.1 199 Acknowledge end\r\n`);
+		res._writeRaw(`HTTP/1.1 102 Processing\r\n`);
 		res._writeRaw(`\r\n`);
-		self.executeJob();
+		self.executeJob(function(){
+			var headers = self.res.getHeaders();
+			for(var k in headers) res.setHeader(k, self.res.getHeader(k));
+			res.end(self.res.body);
+		});
 	});
 };
 
@@ -135,7 +139,7 @@ RequestState.prototype.patchRequest = function patchRequest(req, res){
 	req.on('data', function(data){
 		if(self.flags.interruptPatchUpload && read > 100000){
 			// Interrupt the connection after reading a certain amount of bytes
-			console.error('Destroying client connection');
+			// console.error('Destroying client connection');
 			res.socket.destroy();
 		}
 		read += data.length;
@@ -221,9 +225,9 @@ RequestState.prototype.patchRequest = function patchRequest(req, res){
 			return res.end('Under-size patch body.\r\n');
 		}
 		if(self.jobPayload.length === self.jobPayloadRead){
-			res.statusCode = 202;
-			// res.setHeader('Location', `/job/${self.reqId}.job`);
 			self.executeJob(function(){
+				res.statusCode = 202;
+				// res.setHeader('Location', `/job/${self.reqId}.job`);
 				res.end();
 			});
 		}else{
@@ -247,6 +251,7 @@ RequestState.prototype.renderResponseMessage = function renderResponseMessage(re
 	// Output the current status of the request
 	res.setHeader('Content-Type', 'message/http');
 	res.write('HTTP/1.1 '+this.res.statusCode+' '+this.res.statusMessage+'\r\n');
+	res.write('MIME-Version: 1.0\r\n');
 	var headers = this.res.getHeaders();
 	for(var k in headers){
 		if(typeof headers[k]==='string') res.write(k+': '+headers[k]+'\r\n');

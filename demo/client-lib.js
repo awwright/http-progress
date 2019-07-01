@@ -37,12 +37,14 @@ function ResumableClientRequest(url, options, cb){
 	this.uploadOpen = true;
 	this.downloadMessageRead = 0; // Bytes successfully read from download message
 	this.downloadContentRead = 0; // Bytes successfully read from download message-body
-	this.method = options.method;
-	this.path = options.path;
+	this.method = this.initialRequest.method;
+	this.path = this.initialRequest.path;
 
 	this.initialRequest.on('response', function(res){
 		self.initialResponse = res;
 		const readableSide = self.response = new IncomingMessage(res);
+		readableSide.statusCode = res.statusCode;
+		readableSide.statusMessage = res.statusMessage;
 		readableSide.httpVersion = res.httpVersion;
 		readableSide.httpVersionMinor = res.httpVersionMinor;
 		readableSide.httpVersionMajor = res.httpVersionMajor;
@@ -93,7 +95,7 @@ function ResumableClientRequest(url, options, cb){
 		self._pipeBuffer(0, function(){});
 	}
 
-	this.initialRequest.on('error', function(err){ 
+	this.initialRequest.on('error', function(err){
 		if(self.initialResponse===null){
 			if(self.initialRequestContentLocation){
 				self._retryUpload();
@@ -127,6 +129,7 @@ ResumableClientRequest.prototype._retryUpload = function _retryUpload(){
 	headRequest.once('response', function headResponse(headRes){
 		if(!headRes.headers['content-length']){
 			// TODO: begin re-uploading from last ACK'd byte in small segments
+			throw new Error('No Content-Length in resync response');
 			return;
 		}
 		var ackBytes = parseInt(headRes.headers['content-length']);
@@ -186,6 +189,7 @@ ResumableClientRequest.prototype._submitUpload = function(offset, cb){
 		if(cb) cb(err);
 	});
 	patchRequest.on('response', function patchResponse(res){
+		res.resume();
 		if(res.statusCode >= 200 && res.statusCode <= 299){
 			self.uploadConfirmed = self.uploadLength;
 			res.on('end', function(){
@@ -344,7 +348,6 @@ ResumableClientRequest.prototype._write = function(data, encoding, callback){
 		this.uploadBufferParts.push(data);
 		this.uploadBufferLength += data.length;
 	}
-	// console.log('client buffer '+this.uploadBufferLength);
 	this.writeDestAvailable = callback;
 	if(this.writeDest){
 		return this.writeDest.write(data, encoding, function(){
