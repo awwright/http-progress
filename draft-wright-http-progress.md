@@ -207,23 +207,23 @@ quoted-string   = <quoted-string, see [RFC7230], Section 3.2.6>
 ext-value       = <ext-value, see [RFC8187]>
 ~~~
 
-The Progress header lists data about the current operation and summarizes operations that have finished.
+The Progress header lists data about the current operation and summarizes operations that have finished. It contains a fraction, and any number of remarks.
 
-The numerator specifies the number of sub-operations that have completed. It may also represent the zero-indexed ID of the current operation. The numerator MUST NOT decrease in value.
+The fraction numerator specifies the number of operations that have completed. It may also represent the zero-indexed identifier of the current operation. The numerator MUST NOT decrease in value.
 
-The denominator specifies the total expected operations to be completed before a final status code can be delivered. If specified, the denominator MUST NOT be smaller than the numerator. If the length of the operation is unknown, it may be omitted. If additional tasks need to be performed, the denominator MAY increase.
+The fraction denominator specifies the total expected operations to be completed before a final status code can be delivered. If specified, the denominator MUST NOT be smaller than the numerator. The denominator MAY be omitted when the length of the operation is unknown. If additional tasks need to be performed, the denominator MAY increase. The numerator MUST NOT decrease in value and MUST NOT disappear once introduced.
 
-The message is some sort of remark indicating the current task being carried out. If multiple files are being operated on, this might refer to the most recent file to be opened. Four forms are provided:
+The remark is some sort of indication of the current task being carried out. For example, if multiple files are being operated on, it might refer to the most recent file to be opened. Four forms are provided:
 
 * Use of additional "fraction" productions are permitted to indicate progress on a subordinate operation. For example, a data transfer in progress as part of a multi-step operation.
 
 * Use of the "comment" production implies the text is not intended for end users.
 
-* If the HTTP server supports localization, the server SHOULD negotiate a language using `Accept-Language`, if it exists in the request. The header field value should use the "ext-value" production and include the language tag of the negotiated language, which MAY be different than the `Content-Language`.
+* The "ext-value" provides a label for users. If the HTTP server supports localization, the server SHOULD negotiate a language using `Accept-Language`, if it exists in the request. This language does not necessarily have to be the same as the `Content-Language`.
 
-* Use of a quoted-string is also supported if the text is entirely 7-bit ASCII. This is suitable for reporting filenames or similar data.
+* The "quoted-string" is also supported if the text is entirely 7-bit ASCII. This is suitable for reporting filenames or similar data not in any particular language.
 
-Multiple remarks MAY be used. Remarks MUST be listed in decending significance; if multiple fractions are presented, latter remarks describing an operation identified by the previous fraction.
+Multiple remarks MAY be used. Remarks MUST be listed in descending significance; if multiple fractions are presented, remarks describe the operation identified by the previous fraction.
 
 Example usage:
 
@@ -232,7 +232,6 @@ Progress: 0/1
 Progress: 66/ (tries) utf-8'en'Generating%20prime%20number
 Progress: 5/16 UTF-8'ja-JP'%e9%a3%9f%e3%81%b9%e3%81%a6
 Progress: 3/20 "POST http://example.com/item/3" 8020/8591489 (bytes)
-
 ~~~
 
 
