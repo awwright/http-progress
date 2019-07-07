@@ -38,7 +38,7 @@ If the final headers have been written but the payload transfer was interrupted,
 
 ## Node.js Proof-of-Concept
 
-This includes a proof-of-concept written for Node.js. As of Node.js v12.4.0, a patch is required to expose headers in 1xx intermediate status requests.
+This includes a proof-of-concept written for Node.js. As of Node.js v12.4.0, a patch is required to expose headers in 1xx interim status requests.
 
 * demo/client-lib.js - Simple library similar to Node.js http.request
 * demo/httpd.js - Server implementing resumable requests, the byteranges PATCH type, and progress of long-running responses, and a test suite with various endpoints that respond in different ways
@@ -130,7 +130,7 @@ Content-Range: bytes 20-99/100
 
 Where `...` is content that has been omitted for brevity.
 
-The server now begins processing this file, beginning by emitting a `102 Processing` intermediate response acknowledging that processing has begun. After 20 seconds of processing, the server realizes it has been running for longer than the client says it is prepared to wait, and so responds with `202 Accepted`.
+The server now begins processing this file, beginning by emitting a `102 Processing` interim response acknowledging that processing has begun. After 20 seconds of processing, the server realizes it has been running for longer than the client says it is prepared to wait, and so responds with `202 Accepted`.
 
 ~~~http
 HTTP/1.1 102 Processing 

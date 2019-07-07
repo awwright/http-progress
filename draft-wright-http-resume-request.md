@@ -12,7 +12,7 @@ HTTP is a stateless protocol, which implies that if a request is interrupted, th
 
 When a user-agent wants to make a lengthy upload, it is typical to include `Expect: 100-continue` and wait for the server to validate the request headers before allowing the upload to proceed. This workflow takes advantage of this fact, and along with this response, includes instructions on how to resume the upload if it becomes interrupted, by providing a URI representing the address where the upload is being stored.
 
-The initial request is done with `Expect: 100-continue` with `Prefer: resume`, which will return a `100 Continue` intermediate response with `Request-Content-Location`, `Response-Message-Location`, and/or `Content-Location` headers.
+The initial request is done with `Expect: 100-continue` with `Prefer: resume`, which will return a `100 Continue` interim response with `Request-Content-Location`, `Response-Message-Location`, and/or `Content-Location` headers.
 
 If the request was interrupted before `100 Continue` was received, then the server state has not changed yet, and the client may re-issue the request.
 
@@ -34,7 +34,7 @@ The client MAY acknowledge it has fully consumed to the completed operation by i
 
 This response header specifies the server-specified location that the request message-body will be available at.
 
-If the client sent `Expect: 100-continue` with a `Prefer: resume` preference, this header SHOULD be sent in the `100 Continue` intermediate response headers.
+If the client sent `Expect: 100-continue` with a `Prefer: resume` preference, this header SHOULD be sent in the `100 Continue` interim response headers.
 
 If the server does not normally retain the contents of an upload (for example, if the upload is only used to make a digest, or is quickly encrypted), the server MAY choose to only support a HEAD request, if it can respond with the correct `Content-Length` of the upload. GET requests in this case would return `405 (Method Not Allowed)` with an `Allow: HEAD, PATCH` header.
 
@@ -70,7 +70,7 @@ Any presence of the `resume` preference is a request to send `Request-Content-Lo
 
 ### Acknowledge
 
-This response header is intended to be used in `100 Continue` intermediate responses to confirm to the client that some amount of data has been persisted. Clients MAY use this header to know how far back to keep data buffered, in case it must be re-transmitted.
+This response header is intended to be used in `100 Continue` interim responses to confirm to the client that some amount of data has been persisted. Clients MAY use this header to know how far back to keep data buffered, in case it must be re-transmitted.
 
 ~~~abnf
 Acknowledge = 1*DIGIT

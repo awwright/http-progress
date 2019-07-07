@@ -44,7 +44,7 @@ HTTP is often used for making and observing the progress of long-running operati
 * Working through a multi-step operation, e.g. provisioning a server
 * Receiving updates to a long running task, e.g. construction of a building
 
-This document specifies a way to receive updates from the server on progress of such an operation, by defining a "progress" HTTP preference indicating the client would prefer to receive regular progress updates, a header for describing the current progress, and a 1xx intermediate status response to convey this progress information.
+This document specifies a way to receive updates from the server on progress of such an operation, by defining a "progress" HTTP preference indicating the client would prefer to receive regular progress updates, a header for describing the current progress, and a 1xx interim response to convey this progress information.
 
 
 ## Notational Conventions
@@ -76,9 +76,9 @@ To begin, the client makes the initial request with an unsafe method. For exampl
 
 * If the operation finishes quickly, the server can issue the final response with a non-1xx, non-202 status code. The server may respond with any response allowed by HTTP, including a document describing the result of the operation, a representation of the new state of the resource, or a minimal representation.
 
-* If the client sent a `Prefer: processing` preference, the server SHOULD issue a `102 Processing` intermediate response upon receipt of the request, and every time there is an update to the operation progress. The first intermediate response SHOULD include a `Location` header identifying the status document created for this request. When the request finishes, respond normally with the final non-1xx, non-202 status code.
+* If the client sent a `Prefer: processing` preference, the server SHOULD issue a `102 Processing` interim response upon receipt of the request, and every time there is an update to the operation progress. The first interim response SHOULD include a `Location` header identifying the status document created for this request. When the request finishes, respond normally with the final non-1xx, non-202 status code.
 
-* If the request includes `Prefer: respond-async, wait=n`, and has been running longer than the preferred wait time, then background the operation and emit `202 Accepted`, with a `Location` header. If the server emitted a 102 Processing intermediate response, this will be the same header as before.
+* If the request includes `Prefer: respond-async, wait=n`, and has been running longer than the preferred wait time, then background the operation and emit `202 Accepted`, with a `Location` header. If the server emitted a 102 Processing interim response, this will be the same header as before.
 
  If the server responds with the result of the operation, or a representation of the new state of the resource, the `Content-Location` header identifies where this document can be requested in the future.
 
@@ -261,7 +261,7 @@ Status-URI: 200 <http://example.com/capture>
 
 The "processing" HTTP preference {{!RFC7240}} specifies if the server should emit `102 Processing` status responses.
 
-When performing a unsafe action, the server should emit intermediate `102 Processing` responses until the action finishes.
+When performing a unsafe action, the server should emit interim `102 Processing` responses until the action finishes.
 
 In a GET or HEAD request to a status document, it means the client is only interested in the result of the operation that the status document is about, and the server should send `102 Processing` updates until then. The `respond-async` and `wait` preferences are ignored here as the request is not performing an action.
 
