@@ -65,19 +65,20 @@ function runTest(id){
 				data += block.toString();
 			});
 			res.on('end', function(){
-				if(data!=='Finished job result!\r\n'){
-					reject(new Error('Incorrect response'));
+				if(data==='Finished job result!\r\n'){
+					console.log('End test '+id);
+					return void resolve();
+				}else{
+					return void reject(new Error('Incorrect response'));
 				}
-				console.log('End test '+id);
 			});
-			res.on('end', resolve);
 			res.on('error', reject);
 		});
 	});
 }
 
 async function runAll(){
-	for(var i=0; i<1; i++) await runTest(i);
+	for(var i=0; i<3; i++) await runTest(i);
 }
 
 runAll();

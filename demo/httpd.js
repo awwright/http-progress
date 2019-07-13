@@ -17,6 +17,7 @@ Once all the endpoints have been called, the client can GET /test/results and se
 */
 
 var httplib = require('http');
+var stream = require('stream');
 var port = process.env.PORT || 18080;
 
 // Status code to use for 2__ (Incomplete Resource)
@@ -29,7 +30,6 @@ var requestCount = 0;
 // List of flags to apply to each request
 var testSuite = [
 	{},
-	// {interruptContinue: true},
 	{interruptInitialUpload: true},
 	{interruptInitialUpload: true, interruptPatchUpload: true},
 ];
@@ -47,26 +47,40 @@ function resetTestStatus(){
 }
 resetTestStatus();
 
-function RequestState(reqId, req, res){
-	this.reqId = reqId;
-	this.req = req;
-	this.res = res;
-	this.jobPayloadRead = 0;
-	this.jobPayload = null;
+function ResumableJob(reqId){
+	this.reqId = reqId; // Used to generate link relations to this resource
+	this.jobReqRead = 0; // How many bytes have been read for current job
+	this.jobReqLength = null; // How many bytes are expected for current job
+	this.initialRequest = null; // The request object that kicked off this job
+	this.initialResponse = null; // The response object to the initial request
+	this.currentRequest = null; // Current client allowed to upload to this job
+	this.currentResponse = null; // initialResponse, if known to be active
+	this.req = null; // Readable object representing initial request plus any data appended in subsequent requests
+	this.res = null; // Writable object that buffers data, and forwards to initial response (if still active)
+	this.clientStart = 0; // What byte the current client wil upload through
+	this.resPayload = Buffer.alloc(0); // Buffered response, so it may be re-requested
+	this.resPayloadFinal = false; // If final response is fully written
 	// Flags to change behavior
 	this.flags = {};
 }
 
-RequestState.prototype.init = function init(req, res){
+ResumableJob.prototype.initRequest = function initRequest(req, res, initializeJob){
 	var self = this;
+
+	if(this.initialRequest !== null || this.initialRequest !== null) throw new Error('Init after resume');
+	self.initialRequest = req;
+	self.initialResponse = res;
+	self.currentRequest = req;
+	self.currentResponse = res;
+
 	// A Content-Length is required to allocate the correct amount of memory
 	if(!req.headers['content-length'] || !req.headers['content-length'].match(/^\d+$/)){
 		res.statusCode = 411;
 		res.end();
 		return;
 	}
-	this.jobPayloadRead = 0;
-	this.jobPayload = new Buffer.alloc(parseInt(req.headers['content-length']));
+	this.jobReqRead = 0;
+	this.jobReqLength = parseInt(req.headers['content-length']);
 	if(req.headers['expect'] && req.headers['expect'] !== '100-continue'){
 		res.statusCode = 417;
 		res.end();
@@ -88,43 +102,153 @@ RequestState.prototype.init = function init(req, res){
 		res._writeRaw(`Response-Message-Location: /job/${this.reqId}.res\r\n`);
 		res._writeRaw(`\r\n`);
 	}
+
+	self.req = new httplib.IncomingMessage(this);
+	self.req.method = req.method;
+	self.req.httpVersion = req.httpVersion;	
+	self.req.rawHeaders = req.rawHeaders;
+	self.req.headers = req.headers;
+	var read = 0;
 	req.on('data', function(segment){
-		segment.copy(self.jobPayload, self.jobPayloadRead, 0, segment.length);
-		self.jobPayloadRead += segment.length;
-		res._writeRaw(`HTTP/1.1 199 Acknowledge ${self.jobPayloadRead}B\r\n`);
-		// res._writeRaw(`Request-Ack: ${self.jobPayloadRead}\r\n`);
-		res._writeRaw(`\r\n`);
-		if(self.flags.interruptInitialUpload && self.jobPayloadRead > 100000){
+		read += segment.length;
+		if(self.flags.interruptInitialUpload && read > 100000){
 			// Interrupt the connection after reading a certain amount of bytes
 			// console.error('Destroying client connection');
 			res.socket.destroy();
 		}
+		
+		const ret = self.req.push(segment);
+		if (ret === false) {
+			if (((state.pipesCount === 1 && state.pipes === dest) || (state.pipesCount > 1 && state.pipes.includes(dest))) && !cleanedUp) {
+				state.awaitDrain++;
+			}
+			src.pause();
+		}
+	});
+	req.on('drain', function(){
 	});
 	req.on('end', function(){
+		if(req.trailers) self.req.trailers = req.trailers;
+		if(req.rawTrailers) self.req.rawTrailers = req.rawTrailers;
 		res._writeRaw(`HTTP/1.1 102 Processing\r\n`);
 		res._writeRaw(`\r\n`);
-		self.executeJob(function(){
-			var headers = self.res.getHeaders();
-			for(var k in headers) res.setHeader(k, self.res.getHeader(k));
-			res.end(self.res.body);
-		});
 	});
+
+	// Buffer data written to response and also write it to original response, if available
+	self.res = new stream.Writable();
+	Object.defineProperty(self.res, 'statusCode', {
+		set: function(v){ self.initialResponse.statusCode = v; },
+		get: function(){ return self.initialResponse.statusCode; },
+	});
+	Object.defineProperty(self.res, 'statusMessage', {
+		set: function(v){ self.initialResponse.statusMessage = v; },
+		get: function(){ return self.initialResponse.statusMessage; },
+	});
+	self.res.setHeader = function setHeader(name, value){
+		self.initialResponse.setHeader(name, value);
+	}
+	self.res.getHeaders = function getHeaders(){
+		self.initialResponse.getHeaders();
+	}
+	self.res.write = function(data){
+		if(data && self.resPayload){
+			self.resPayload = Buffer.concat([self.resPayload, Buffer.from(data)]);
+		}
+		if(self.currentResponse){
+			self.currentResponse.write(data, encoding);
+		}
+	}
+	self.res.end = function(data){
+		if(data && self.resPayload){
+			self.resPayload = Buffer.concat([self.resPayload, Buffer.from(data)]);
+		}
+		if(self.currentResponse){
+			self.currentResponse.end(data);
+		}
+		self.currentResponse = null;
+	}
+	initializeJob(self.req, self.res);
 };
 
-RequestState.prototype.renderRequest = function renderRequest(req, res){
-	if(this.jobPayloadRead < this.jobPayload.length){
+ResumableJob.prototype.resumeRequest = function resumeRequest(req, res){
+	res.setHeader('Allow', 'GET, HEAD, PATCH, DELETE');
+	if(req.method==='GET' || req.method==='HEAD'){
+		return this.renderRequest(req, res);
+	}else if(req.method==='PATCH'){
+		return this.patchRequest(req, res);
+	}else if(req.method==='DELETE'){
+		return this.deleteRequest(req, res);
+	}else{
+		res.statusCode = 405;
+		if(this.jobPayload){
+			res.setHeader('Allow', 'GET, HEAD, PATCH, DELETE');
+		}else{
+			res.setHeader('Allow', 'HEAD, PATCH, DELETE');
+		}
+		res.end();
+		return;
+	}
+}
+
+ResumableJob.prototype.confirm = function confirm(confirmedBytes){
+	// Indicate bytes that have been saved and do not need to be re-transmitted by the client
+	var self = this;
+	if(confirmedBytes < self.jobReqRead){
+		throw new Error('Already sent confirmation for bytes');
+	}else if(confirmedBytes === self.jobReqRead){
+		return;
+	}
+	self.jobReqRead = confirmedBytes;
+	if(this.jobReqRead === this.jobReqLength){
+		// Data is fully uploaded, respond to current request with final result
+		this.req.emit('end');
+		this.initialResponse.statusCode = this.res.statusCode;
+		this.initialResponse.statusMessage = this.res.statusMessage;
+		this.initialResponse.statusMessage = this.res.statusMessage;
+		this.initialResponse.httpVersion = this.res.httpVersion;
+		this.initialResponse.httpVersionMinor = this.res.httpVersionMinor;
+		this.initialResponse.httpVersionMajor = this.res.httpVersionMajor;
+		this.initialResponse.headers = this.res.headers;
+		this.initialResponse.rawHeaders = this.res.rawHeaders;
+		this.res.write = function(data){
+			self.initialResponse.write(data);
+		};
+		this.res.end = function(data){
+			self.initialResponse.end(data);
+		};
+		// Hool self.res
+	}else if(this.jobReqRead === this.initialRequestEnd){
+		// Data for current PATCH is fully uploaded, respond with 2__ Incomplete Content
+		this.initialResponse.statusCode = this.res.statusCode;
+		this.initialResponse.statusMessage = this.res.statusMessage;
+		this.initialResponse.end();
+	}else if(this.initialResponse){
+		// Tell client about confirmed data
+		this.initialResponse._writeRaw(`HTTP/1.1 199 Acknowledge ${self.jobReqRead}B\r\n`);
+		this.initialResponse._writeRaw(`\r\n`);
+	}
+}
+
+ResumableJob.prototype.renderRequest = function renderRequest(req, res){
+	if(this.jobReqRead < this.jobReqLength){
 		res.statusCode = IncompleteResource;
 		res.statusMessage = 'Incomplete Resource'
 	}else{
 		res.statusCode = 200;
 	}
-	res.setHeader('Content-Length', this.jobPayloadRead);
-	if(req.method==='HEAD') res.end();
-	res.end(this.jobPayload.slice(0, this.jobPayloadRead));
+	res.setHeader('Content-Length', this.jobReqRead);
+	if(req.method==='HEAD'){
+		res.end();
+	}else if(this.jobPayload){
+		res.end(this.jobPayload.slice(0, this.jobReqRead));
+	}else{
+		throw new Error('Not supported');
+	}
 }
 
-RequestState.prototype.patchRequest = function patchRequest(req, res){
+ResumableJob.prototype.patchRequest = function patchRequest(req, res){
 	var self = this;
+
 	// Parse the patch
 	if(!req.headers['content-type'] || req.headers['content-type']!=='message/byteranges'){
 		res.statusCode = 415;
@@ -165,17 +289,17 @@ RequestState.prototype.patchRequest = function patchRequest(req, res){
 					segmentOffset = parseInt(m[1]);
 					var segmentEnd = parseInt(m[2]);
 					var segmentTotal = parseInt(m[3]);
-					if(segmentOffset !== self.jobPayloadRead){
+					if(segmentOffset !== self.jobReqRead){
 						res.statusCode = 400;
 						res.setHeader('Content-Type', 'text/plain')
-						return res.end('Incorrect Content-Range starting index: Have '+segmentOffset+', expect '+self.jobPayloadRead+'\r\n');
+						return res.end('Incorrect Content-Range starting index: Have '+segmentOffset+', expect '+self.jobReqRead+'\r\n');
 					}
-					if(segmentEnd > self.jobPayload.length || segmentEnd < segmentOffset){
+					if(segmentEnd > self.jobReqLength || segmentEnd < segmentOffset){
 						res.statusCode = 400;
 						res.setHeader('Content-Type', 'text/plain')
 						return res.end('Incorrect Content-Range ending index.\r\n');
 					}
-					if(segmentTotal !== self.jobPayload.length){
+					if(segmentTotal !== self.jobReqLength){
 						res.statusCode = 400;
 						res.setHeader('Content-Type', 'text/plain')
 						return res.end('Incorrect Content-Range total length.\r\n');
@@ -186,6 +310,9 @@ RequestState.prototype.patchRequest = function patchRequest(req, res){
 						return res.end('Mismatch between Content-Length and Content-Range.\r\n');
 					}
 					requestRemaining = parseInt(messageHeaders['content-length']);
+
+					self.initialRequest = req;
+					self.initialResponse = res;
 					buffer = buffer.slice(2);
 					continue;
 				}
@@ -195,22 +322,28 @@ RequestState.prototype.patchRequest = function patchRequest(req, res){
 				messageHeaders[headerName.toLowerCase()] = headerValue;
 				buffer = buffer.slice(crlf + 2);
 			}else if(state==='message-body'){
+				if(self.initialRequest !== req){
+					res.statusCode = 400;
+					res.setHeader('Content-Type', 'text/plain');
+					return res.end('Upload interrupted by another session.\r\n');
+				}
 				if(buffer.length > requestRemaining){
 					res.statusCode = 400;
 					res.setHeader('Content-Type', 'text/plain');
 					return res.end('Patch longer than declared length.\r\n');
 				}
-				if(segmentOffset + buffer.length > self.jobPayload.length){
+				if(segmentOffset + buffer.length > self.jobReqLength){
 					res.statusCode = 400;
 					res.setHeader('Content-Type', 'text/plain')
-					return res.end('Over-long patch body.\r\n'+`${segmentOffset} + ${buffer.length} > ${self.jobPayload.length}\r\n`);
+					return res.end('Over-long patch body.\r\n'+`${segmentOffset} + ${buffer.length} > ${self.jobReqLength}\r\n`);
 				}
-				buffer.copy(self.jobPayload, segmentOffset);
-				self.jobPayloadRead += buffer.length;
+				if(self.jobPayload){
+					buffer.copy(self.jobPayload, segmentOffset);
+				}else{
+					self.req.push(buffer);
+				}
 				segmentOffset += buffer.length;
 				requestRemaining -= buffer.length;
-				res._writeRaw(`HTTP/1.1 199 Acknowledge ${self.jobPayloadRead}B\r\n`);
-				res._writeRaw(`\r\n`);
 				buffer = Buffer.alloc(0);
 				return;
 			}else{
@@ -224,30 +357,27 @@ RequestState.prototype.patchRequest = function patchRequest(req, res){
 			res.setHeader('Content-Type', 'text/plain')
 			return res.end('Under-size patch body.\r\n');
 		}
-		if(self.jobPayload.length === self.jobPayloadRead){
-			self.executeJob(function(){
-				res.statusCode = 202;
-				// res.setHeader('Location', `/job/${self.reqId}.job`);
-				res.end();
-			});
+		if(self.jobReqLength === self.jobReqRead){
+			// self.executeJob(self.req, self.res);
+			self.res.end();
 		}else{
 			res.statusCode = IncompleteResource;
 			res.statusMessage = 'Incomplete Resource';
 			res.setHeader('Content-Type', 'text/plain');
-			res.end(`${self.jobPayloadRead}/${self.jobPayload.length} bytes\r\n`);
+			res.end(`${self.jobReqRead}/${self.jobReqLength} bytes\r\n`);
 			return;
 		}
 	});
 }
 
-RequestState.prototype.executeJob = function executeJob(cb){
+ResumableJob.prototype.initializeJob = function initializeJob(req, res){
 	// Determine if uploaded size equals expected
-	this.res.setHeader('Content-Type', 'text/plain');
-	this.res.body = "Job received\r\n";
-	return void cb();
+	res.setHeader('Content-Type', 'text/plain');
+	res.end("Job received\r\n");
+	req.resume();
 }
 
-RequestState.prototype.renderResponseMessage = function renderResponseMessage(req, res){
+ResumableJob.prototype.renderResponseMessage = function renderResponseMessage(req, res){
 	// Output the current status of the request
 	res.setHeader('Content-Type', 'message/http');
 	res.write('HTTP/1.1 '+this.res.statusCode+' '+this.res.statusMessage+'\r\n');
@@ -260,10 +390,10 @@ RequestState.prototype.renderResponseMessage = function renderResponseMessage(re
 		});
 	}
 	res.write('\r\n');
-	res.end(this.res.body);
+	res.end(this.resPayload);
 }
 
-RequestState.prototype.renderStatusDocument = function renderStatusDocument(req, res){
+ResumableJob.prototype.renderStatusDocument = function renderStatusDocument(req, res){
 	// Output the current status of the request
 }
 
@@ -284,19 +414,8 @@ function request(req, res){
 			res.end();
 			return;
 		}
-		res.setHeader('Allow', 'GET, HEAD, PATCH, DELETE');
-		var state = requests.get(reqId);
-		if(req.method==='GET' || req.method==='HEAD'){
-			return state.renderRequest(req, res);
-		}else if(req.method==='PATCH'){
-			return state.patchRequest(req, res);
-		}else if(req.method==='DELETE'){
-			return state.deleteRequest(req, res);
-		}else{
-			res.statusCode = 405;
-			res.end();
-			return;
-		}
+		requests.get(reqId).resumeRequest(req, res);
+		return;
 	}
 	// Resources representing the status of an ongoing job
 	if(m = req.url.match(/^\/job\/(\d+)\.job$/)){
@@ -348,9 +467,13 @@ function request(req, res){
 			return;
 		}else if(req.method==='POST'){
 			var reqId = requestCount++;
-			var state = new RequestState(reqId, req, res);
+			var state = new ResumableJob(reqId);
 			requests.set(reqId, state);
-			state.init(req, res);
+			state.initRequest(req, res, function(ereq, eres){
+				eres.statusCode = 500;
+				eres.setHeader('Content-Type', 'text/plain');
+				eres.end('Feature not implemented\r\n');
+			});
 			return;
 		}else{
 			res.statusCode = 405;
@@ -374,24 +497,33 @@ function request(req, res){
 			return;
 		}else if(req.method==='POST'){
 			var reqId = requestCount++;
-			var state = new RequestState(reqId, req, res);
+			var state = new ResumableJob(reqId);
 			requests.set(reqId, state);
 			state.flags = testSuite[testId];
-			state.executeJob = function executeJob(cb){
-				for(var i=0, s=''; i<100000; i++){
-					if(this.jobPayload.slice(i*10, i*10+10).toString() !== (('0000000'+i).substr(-8)+'\r\n') ){
-						testStatus[testId].status = "fail";
-						testStatus[testId].message = "Test failed at byte "+(i*10);
-						res.end("Test failed at byte "+i*10+"\r\n");
-						return;
+			state.initRequest(req, res, function initializeJob(ereq, eres){
+				ereq.on('data', function(data){
+					for(var i=0; i<data.length; i++){
+						var bi = state.jobReqRead + i;
+						var num = Math.floor(bi/10);
+						var expected = (('0000000'+num).substr(-8) + '\r\n').charCodeAt(bi % 10);
+						if(data[i] !== expected){
+							testStatus[testId].status = "fail";
+							testStatus[testId].message = "Test failed at byte "+i;
+							// console.error("Test failed at byte "+i+"\r\n"+`Got ${String.fromCharCode(data[i])} expected ${String.fromCharCode(expected)}`);
+							// console.error(data.slice(0, i+1).toString());
+							// console.error(res._writableState.ending);
+							eres.end(testStatus[testId].message+"\r\n");
+						}
 					}
-				}
-				testStatus[testId].status = "pass";
-				this.res.setHeader('Content-Type', 'text/plain');
-				this.res.body = "Finished job result!\r\n";
-				return void cb();
-			};
-			state.init(req, res);
+					state.confirm(state.jobReqRead + data.length);
+				});
+				ereq.on('end', function(){
+					state.confirm(state.jobReqRead);
+					testStatus[testId].status = "pass";
+					eres.setHeader('Content-Type', 'text/plain');
+					eres.end("Finished job result!\r\n");
+				});
+			});
 			return;
 		}else{
 			res.statusCode = 405;
@@ -444,9 +576,9 @@ function request(req, res){
 			return;
 		}else if(req.method==='POST'){
 			var reqId = requestCount++;
-			var state = new RequestState(reqId, req);
+			var state = new ResumableJob(reqId, req);
 			requests.set(reqId, state);
-			state.init(req, res);
+			state.initRequest(req, res);
 			return;
 		}else{
 			res.statusCode = 405;

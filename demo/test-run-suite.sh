@@ -9,10 +9,11 @@ HTTPD_PID=$!
 curl -XPOST http://localhost:18080/test/reset --retry-connrefused --retry 20 --retry-delay 1 -s
 $NODEJS test-runner-client.js 'http://localhost:18080'
 RESULT_1=$?
+echo "exit($RESULT_1)"
 
-echo ""
-echo "Results:"
-curl -v http://localhost:18080/test/status
+# echo ""
+# echo "Results:"
+# curl -v http://localhost:18080/test/status
 
 # Run the server tests (the client that ensures the server is behaved correctly)
 # $NODEJS test-server.js 'http://localhost:18080'
