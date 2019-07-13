@@ -26,7 +26,6 @@ normative:
 
 informative:
   RFC2518: HTTP Extensions for Distributed Authoring -- WEBDAV
-  RFC8288: Web Linking
 
 --- abstract
 

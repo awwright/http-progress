@@ -1,7 +1,36 @@
+---
+title: Partial Uploads in HTTP
+docname: draft-wright-http-partial-upload
+category: exp
+abbrev: HTTP Progress
+ipr: trust200902
+workgroup: HTTP
+keyword:
+  - Internet-Draft
+  - HTTP
+stand_alone: yes
+pi: [toc, sortrefs, symrefs]
 
-# Partial Uploads in HTTP
+author:
+ -
+    ins: A. Wright
+    name: Austin Wright
+    email: aaa@bzfx.net
+
+normative:
+  RFC2119: Key words for use in RFCs
+  RFC7230: HTTP/1.1 Syntax
+  RFC7231: HTTP/1.1 Semantics
+  RFC8187: Indicating Character Encoding and Language for HTTP Header Field Parameters
+  RFC7240: Prefer Header for HTTP
+
+informative:
+
+--- abstract
 
 This document specifies a new media type intended for use in PATCH payloads that allows a resource to be uploaded in several segments, instead of a single large request.
+
+--- middle
 
 
 ## Introduction
@@ -56,3 +85,6 @@ The `message/byteranges` media type is a media type that patches the defined byt
 ### Unallocated ranges
 
 Servers SHOULD only allow patches to ranges starting inside or immediately after the end of the representation. To prevent disclosing the contents of memory, servers MUST fill undefined ranges with predictable data (e.g. zeros).
+
+
+--- back
