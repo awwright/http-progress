@@ -64,20 +64,22 @@ If the client loses the state of the upload, or the connection is terminated, th
 
 ### 2__ (Incomplete Content) status code
 
-The 2__ (Incomplete Content) status code indicates that while the returned representation is up-to-date, the server is aware that the resource is not ready for use, and more data is expected to be written in the near future.
+The 2__ (Incomplete Content) status code indicates that while the request succeeded, the request target is not ready for use, and the server is awaiting more data to be written.
 
-If used in an unsafe request, it means the operation succeeded, but more requests are necessary before the server can do anything else with the resource.
+In response to a GET request, representations returned with this status code might not be valid according to their media type, but could become valid once more data is appended.
 
-Representations returned with this status code might not be valid according to their media type, but could become valid once more data is appended.
+In response to a PATCH request, it means the operation succeeded, but more uploads are necessary before the server can do anything else with the resource.
 
-This is a 2xx class status because it is typically only received by clients actively working with partial uploads. Clients not expecting an Incomplete Content response MAY treat this status as an error.
+This is a 2xx class status because it indicates the request was filled, and may safely be handled the same as a 200 (OK) response. However, it is only expected to be seen by clients making partial uploads; clients not expecting an this status MAY treat it as an error.
 
-Responses to a HEAD request MUST return the same end-to-end headers as a GET request. Normally, payload headers could be omitted, however Content-Length and Content-Range are essential fields for synchronizing the state of partial uploads. Hop-by-hop headers may still be omitted.
+Responses to a HEAD request MUST return the same end-to-end headers as a GET request. Normally, HTTP allows HEAD responses to omit certain header fields related to the payload; however Content-Length and Content-Range are essential fields for synchronizing the state of partial uploads. Hop-by-hop headers may still be omitted.
 
 
 ### message/byteranges media type
 
-The `message/byteranges` media type is a media type that patches the defined byte range to some specified contents. It is semantically a subset of the `message/http` media type, in that it must be a message with a `Range` header specifying a byte range, and the bytes in that range. It is also semantically the same as a `multipart/byteranges` document that lists a single byte range, this media type eliminates the need for specifying a seperator. For specifying multiple ranges, use `multipart/byteranges` instead.
+The `message/byteranges` media type is a media type that patches the defined byte range to some specified contents. It follows the syntax of a MIME message, and MUST include the Content-Range header field. It is similar to the `multipart/byteranges` media type, except it omits the multipart separator, and so only allows a single range to be specified.
+
+A patch is applied to a document by changing the range of bytes to the contents of the patch message payload. Servers MAY treat an invalid or nonexistent range as an error.
 
 
 ## Security Considerations
