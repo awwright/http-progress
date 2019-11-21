@@ -1,8 +1,7 @@
 ---
 title: Partial and Resumable Requests in HTTP
-docname: draft-wright-http-resume-request
+docname: draft-wright-http-resume-request-latest
 category: exp
-abbrev: HTTP Progress
 ipr: trust200902
 workgroup: HTTP
 keyword:
@@ -19,12 +18,8 @@ author:
 
 normative:
   RFC2119: Key words for use in RFCs
-  RFC7230: HTTP/1.1 Syntax
   RFC7231: HTTP/1.1 Semantics
   RFC7240: Prefer Header for HTTP
-
-informative:
-  RFC8288: Web Linking
 
 --- abstract
 
@@ -32,12 +27,11 @@ This document defines a mechanism for following the real-time progress of long-r
 
 --- middle
 
-This document describes a standard mechanism by which servers can address the location where a request is being processed, allowing subsequent requests to complete it, if interrupted.
-
-
 ## Introduction
 
-HTTP is a stateless protocol, which implies that if a request is interrupted, there can be no way to resume that request.
+This document describes a standard mechanism by which servers can address the location where a request is being processed, allowing subsequent requests to complete it, if interrupted.
+
+HTTP is a stateless protocol [RFC7231], which implies that if a request is interrupted, there can be no way to resume that request.
 This is not normally an issue if there is an alternate way of arriving at the desired state from an incomplete state transition.
 For example, if a download is interrupted, the user-agent may request just the missing parts in a Range request.
 However, if an unsafe request is interrupted before the client receives the response, there is no standard way of determining the result of that operation;
@@ -47,7 +41,7 @@ This document standardizes a way of resuming a previous upload, and re-requestin
 
  ## Continue Outstanding Request Workflow
 
-HTTP requests may be resumed by treating each request and response as an HTTP resource unto itself.
+This document specifies how HTTP requests may be resumed, by treating a request or response as an HTTP resource unto itself.
 
 When a user-agent wants to make a lengthy upload, it is typical to include `Expect: 100-continue` and wait for the server to validate the request headers before allowing the upload to proceed. This workflow takes advantage of this fact, and along with this response, includes instructions on how to resume the upload if it becomes interrupted, by providing a URI representing the address where the upload is being stored.
 
@@ -64,7 +58,7 @@ If the response headers were received, but the payload was only partially receiv
 
 ## Closing the Operation
 
-The client MAY acknowledge it has fully consumed to the completed operation by issuing a `DELETE` request on the response-message-location resource. Clients SHOULD issue a DELETE if they do not anticipate needing to request the document in the future.
+The client MAY acknowledge it has fully consumed the completed operation by issuing a `DELETE` request on the response-message-location resource. Clients SHOULD issue a DELETE if they do not anticipate needing to request the document in the future.
 
 
 ## Registrations
@@ -73,7 +67,7 @@ The client MAY acknowledge it has fully consumed to the completed operation by i
 
 This response header specifies the location that represents the request message-body. URI references are resolved against the request URI.
 
-If the client sent `Expect: 100-continue` with a `Prefer: resume` preference, this header SHOULD be sent in the `100 Continue` interim response headers.
+If the client sent `Expect: 100-continue` with a `Prefer: resume` preference [RFC7240], this header SHOULD be sent in the `100 Continue` interim response headers.
 
 If the server does not normally retain the contents of an upload (for example, if the upload is only used to make a digest, or is quickly encrypted), the server MAY choose to only support a HEAD request, if it can respond with the correct `Content-Length` of the upload. GET requests in this case would return `405 (Method Not Allowed)` with an `Allow: HEAD, PATCH` header.
 
