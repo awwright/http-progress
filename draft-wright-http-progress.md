@@ -60,7 +60,7 @@ Examples in this document may add whitespace for clarity, or omit some HTTP head
 
 ## Scope
 
-This document is only intended to provide a mechanism for relaying the progress of a long-running operation, it does not intend to be a general mechanism for subscribing to updates on a resource in general.
+This document is only intended to provide a mechanism for relaying the progress of a long-running operation, it does not intend to be a mechanism for subscribing to updates on a resource in general.
 
 
 # Status Document Workflow

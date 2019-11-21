@@ -56,7 +56,7 @@ The PATCH method {{RFC5789}} allows a client to modify a resource in a specific 
 
 The `message/byteranges` form may be used in a request as so:
 
-```
+~~~ example
 PATCH /uploads/foo HTTP/1.1
 Content-Type: message/byteranges
 Content-Length: 400
@@ -66,14 +66,14 @@ Content-Range: bytes 100-299/600
 Content-Type: text/plain
 Content-Length: 200
 
-200 bytes...
-```
+[200 bytes...]
+~~~
 
 This request creates a 600 byte document, and uploads 200 bytes of it, starting at a 100-byte offset.
 
 ## Segmented upload with PATCH
 
-As an alternative to using PUT to create a new resource, the contents of a resource may be uploaded in _segments_, each written across several PATCH requests.
+As an alternative to using PUT to create a new resource, the contents of a resource may be uploaded in segments, each written across several PATCH requests.
 
 The first PATCH request creates the resource and uploads the first segment. To ensure the resource does not exist, the request SHOULD include `If-None-Match: *`. The request payload is a `message/byteranges` document containing the first segment of the resource to be uploaded, and the total length of the resource to be uploaded. Upon processing, the server returns `2__ Incomplete Content` indicating the document is error-free up to this point, but that more writes are necessary before the resource will be considered fully written.
 
@@ -84,9 +84,9 @@ When the final segment is uploaded, the server detects the resource is completel
 If the client loses the state of the upload, or the connection is terminated, the user agent can re-synchronize by issuing a `HEAD` request for the resource to get the current uploaded length. The response will typically be 200 (OK) or 2__ (Incomplete Content). If 2__, the user agent may resume uploading the document from that offset.
 
 
-## Registrations
+# Registrations
 
-### 2__ (Incomplete Content) status code
+## 2__ (Incomplete Content) status code
 
 The 2__ (Incomplete Content) status code indicates that while the request succeeded, the request target is not ready for use, and the server is awaiting more data to be written.
 
@@ -99,7 +99,7 @@ This is a 2xx class status because it indicates the request was filled as reques
 Responses to a HEAD request MUST return the same end-to-end headers as a GET request. Normally, HTTP allows HEAD responses to omit certain header fields related to the payload; however Content-Length and Content-Range are essential fields for synchronizing the state of partial uploads. Hop-by-hop headers may still be omitted.
 
 
-### message/byteranges media type
+## message/byteranges media type
 
 The `message/byteranges` media type patches the defined byte range to some specified contents.  It is similar to the `multipart/byteranges` media type, except it omits the multipart separator, and so only allows a single range to be specified.
 
@@ -107,18 +107,18 @@ It follows the syntax of HTTP message headers and body. It MUST include the Cont
 
 `header-field` and `message-body` are specified in [RFC7230].
 
-```
+~~~ abnf
 byterange-document = *( header-field CRLF )
                      CRLF
                      [ message-body ]
-```
+~~~
 
 A patch is applied to a document by changing the range of bytes to the contents of the patch message payload. Servers MAY treat an invalid or nonexistent range as an error.
 
 
-## Security Considerations
+# Security Considerations
 
-### Unallocated ranges
+## Unallocated ranges
 
 Servers must consider what happens when clients make writes to a sparse file.
 

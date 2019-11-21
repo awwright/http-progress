@@ -27,7 +27,7 @@ This document defines a mechanism for following the real-time progress of long-r
 
 --- middle
 
-## Introduction
+# Introduction
 
 This document describes a standard mechanism by which servers can address the location where a request is being processed, allowing subsequent requests to complete it, if interrupted.
 
@@ -38,6 +38,20 @@ However, if an unsafe request is interrupted before the client receives the resp
 the user agent is forced to read the state of the server before deciding on a course of action, which is often implementation-specific.
 This document standardizes a way of resuming a previous upload, and re-requesting the result of an operation.
 
+## Notational Conventions
+
+The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL
+NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED",
+"MAY", and "OPTIONAL" in this document are to be interpreted as
+described in BCP 14 {{!RFC2119}} {{!RFC8174}} when, and only when, they
+appear in all capitals, as shown here.
+
+This document uses ABNF as defined in {{!RFC5234}} and imports grammar rules from {{!RFC7230}}.
+
+For brevity, example HTTP requests or responses may add newlines or whitespace,
+or omit some headers necessary for message transfer.
+
+# Resumable Requests
 
  ## Continue Outstanding Request Workflow
 
@@ -61,9 +75,9 @@ If the response headers were received, but the payload was only partially receiv
 The client MAY acknowledge it has fully consumed the completed operation by issuing a `DELETE` request on the response-message-location resource. Clients SHOULD issue a DELETE if they do not anticipate needing to request the document in the future.
 
 
-## Registrations
+# Registrations
 
-### Request-Content-Location
+## Request-Content-Location
 
 This response header specifies the location that represents the request message-body. URI references are resolved against the request URI.
 
@@ -78,7 +92,7 @@ Request-Content-Location = URI-reference
 This is introduced as a header and not a Link relation because it is specific to the specific message, and not necessarily the representation that the request is about.
 
 
-### Response-Message-Location
+## Response-Message-Location
 
 This response header specifies the location where a copy of the final response message will be made available at. This document SHOULD be `message/http` (regardless of protocol, including HTTP/2), and MAY include the response body.  URI references are resolved against the request URI.
 
@@ -91,7 +105,7 @@ Response-Message-Location = URI-reference
 This is introduced as a header and not a Link relation because it is specific to the specific message, and not necessarily the representation that the request is about.
 
 
-### "resume" preference
+## "resume" preference
 
 The `resume` HTTP Preference specifies how a server should handle a request that was terminated before it was finished by the client.
 
@@ -101,7 +115,7 @@ The `resume` HTTP Preference specifies how a server should handle a request that
 Any presence of the `resume` preference is a request to send `Request-Content-Location`, `Response-Message-Location`, and `Content-Location` headers. An unspecified parameter value defaults to `save-incomplete`.
 
 
-### Acknowledge
+## Acknowledge
 
 This response header is intended to be used in `100 Continue` interim responses to confirm to the client that some amount of data has been persisted by the server. Clients MAY use this header to free buffered data.
 
@@ -110,14 +124,14 @@ Acknowledge = 1*DIGIT
 ~~~
 
 
-### "acknowledge" preference
+## "acknowledge" preference
 
 The "acknowledge" HTTP preference indicates the client would like to receive periodic `100 Continue` responses with an `Acknowledge` header in acknowledgement of received data.
 
 
-## Security Considerations
+# Security Considerations
 
-### Privacy concerns
+## Privacy concerns
 
 Using the resumable requests feature potentially makes the request available to the other user-agents.
 
@@ -127,7 +141,7 @@ Origin servers SHOULD verify that the user who started the request is the same u
 
 In the absence of user authentication, an alternative could be to send `Request-Content-Location` and `Response-Message-Location` with a userinfo component specific to these two resources (stored in hashed form on the origin server); the user agent would then make follow-up requests with an `Authorization` header.
 
-### State storage
+## State storage
 
 In order to allow subsequent HTTP requests to finish the request, origin servers have to store the processing state of the request. In large applications with many load-balanced processing nodes, this state will usually be stored in a database somewhere. This is a new consideration, and a new attack vector that developers will have to secure when designing server software.
 
