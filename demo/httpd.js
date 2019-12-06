@@ -250,7 +250,7 @@ ResumableJob.prototype.patchRequest = function patchRequest(req, res){
 	var self = this;
 
 	// Parse the patch
-	if(!req.headers['content-type'] || req.headers['content-type']!=='message/byteranges'){
+	if(!req.headers['content-type'] || req.headers['content-type']!=='message/byterange'){
 		res.statusCode = 415;
 		return res.end();
 	}

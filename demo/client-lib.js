@@ -91,6 +91,8 @@ function ResumableClientRequest(url, options, cb){
 			if(typeof info.headers['response-message-location']==='string'){
 				self.initialResponseMessageLocation = uriResolve(self.url, info.headers['response-message-location']);
 			}
+		}else{
+			console.error('Headers for 100 (Continue) response are not available; please update Node.js');
 		}
 		self._pipeBuffer(0, function(){});
 	}
@@ -167,7 +169,7 @@ ResumableClientRequest.prototype._submitUpload = function(offset, cb){
 	var options = {
 		method: 'PATCH',
 		headers: {
-			'Content-Type': 'message/byteranges',
+			'Content-Type': 'message/byterange',
 			// comment in headers, for debugging requests without parsing message body
 			'REM-patch-range': `${offset}-${self.uploadLength-1}/${self.uploadLength}`,
 			'REM-patch-length': `${self.uploadLength-offset}`,

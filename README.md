@@ -13,12 +13,12 @@ It supports the following use cases:
 
 ### Patching a specific byte range
 
-Use PATCH with an existing resource using the `message/byteranges` or `multipart/byteranges` media types.
+Use PATCH with an existing resource using the `message/byterange` or `multipart/byteranges` media types.
 
 
 ### Segmented new file creation
 
-Create a new document using PATCH with a `message/byteranges` media type, and the server will report the new file is only partially uploaded with a 2__ (Incomplete Content) status code.
+Create a new document using PATCH with a `message/byterange` media type, and the server will report the new file is only partially uploaded with a 2__ (Incomplete Content) status code.
 
 
 ### Resume interrupted request
@@ -41,7 +41,7 @@ If the final headers have been written but the payload transfer was interrupted,
 This includes a proof-of-concept written for Node.js. As of Node.js v12.4.0, a patch is required to expose headers in 1xx interim status requests.
 
 * demo/client-lib.js - Simple library similar to Node.js http.request
-* demo/httpd.js - Server implementing resumable requests, the byteranges PATCH type, and progress of long-running responses, and a test suite with various endpoints that respond in different ways
+* demo/httpd.js - Server implementing resumable requests, the message/byterange PATCH type, and progress of long-running responses, and a test suite with various endpoints that respond in different ways
 * demo/test-run-suite.sh - start a server and run all the clients
 * demo/test-runner-client.sh - connect to and run the server's testing endpoints
 
@@ -103,7 +103,7 @@ The client writes out a segment of the original upload using a PATCH request to 
 
 ~~~http
 PATCH http://example.com/job/1.request HTTP/1.1
-Content-Type: message/byteranges
+Content-Type: message/byterange
 Content-Length: {length}
 
 Content-Type: application/json
@@ -120,7 +120,7 @@ The server writes out the remainder of the request using a PATCH request to the 
 
 ~~~http
 PATCH http://example.com/job/1.request HTTP/1.1
-Content-Type: message/byteranges
+Content-Type: message/byterange
 
 Content-Type: application/json
 Content-Range: bytes 20-99/100
