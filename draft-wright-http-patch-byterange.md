@@ -23,14 +23,15 @@ normative:
   RFC9112: HTTP/1.1
 
 informative:
-  RFC4918: HTTP Extensions for Web Distributed Authoring and Versioning (WebDAV)
-  RFC5789: PATCH Method for HTTP
+  RFC2046: "Multipurpose Internet Mail Extensions (MIME) Part Two: Media Types"
+  RFC4918: "HTTP Extensions for Web Distributed Authoring and Versioning (WebDAV)"
+  RFC5789: "PATCH Method for HTTP"
 
 
 
 --- abstract
 
-This document specifies a new media type intended for use in PATCH payloads that overwrites a specific byte range, to allow random access writes, or allow a resource to be uploaded in several segments.
+This document specifies a media type for PATCH payloads that overwrites a specific byte range, to allow random access writes, or allow a resource to be uploaded in several segments.
 
 
 
@@ -38,9 +39,9 @@ This document specifies a new media type intended for use in PATCH payloads that
 
 # Introduction
 
-HTTP has many features analogous to a filesystem, including reading, writing, metadata, and file listing {{RFC4918}}. While HTTP supports reading byte range offsets using the Range header ({{Section 14 of RFC9110}}), it cannot be used in PUT, because the write would still be executed even when the byte range is unsupported. However, by using a method and media type that the server must understand, writes to byte ranges with Content-Range header semantics is possible.
+HTTP has many features analogous to a filesystem, including reading, writing, metadata, and file listing {{RFC4918}}. While HTTP supports reading byte range offsets using the Range header ({{Section 14 of RFC9110}}), it cannot be used in PUT, because the write would still be executed even when the byte range is unsupported. However, by using a method and media type that the server must understand, writes to byte ranges with Content-Range header semantics becomes safe.
 
-This may be used as part of a technique for resuming interrupted uploads. Since HTTP is a stateless protocol, there is no way to resume an interrupted request, instead the client can make a request that completes the partial state change. For downloads, the Range header allows a client to download only the unknown data. However, if an upload is interrupted, no method exists to upload only the remaining data; the entire request must be retried.
+This may be used as part of a technique to resume interrupted uploads. Since HTTP is stateless, there is no way to resume an interrupted request; instead the client can make a request that completes the partial state change. For downloads, the Range header allows a client to download only the unknown data. However, if an upload is interrupted, no mechanism exists to upload only the remaining data; the entire request must be retried.
 
 Byte range patches may be used to "fill in these gaps."
 
@@ -63,9 +64,9 @@ or omit some headers necessary for message transfer.
 
 # Modifying a content range with PATCH
 
-Although the Content-Range header cannot be used in requests directly, it may be used in conjunction with the PATCH method {{RFC5789}} and a media type that specifies a subset of bytes in a document, at a particular offset. This document re-uses the `multipart/byteranges` media type, and defines the `message/byterange` media type, for this purpose.
+Although the Content-Range header cannot be used in requests directly, it may be used in conjunction with the PATCH method {{RFC5789}} and a media type that specifies a subset of bytes in a document, at a particular offset. This document re-uses the "multipart/byteranges" media type, and defines the "message/byterange" media type, for this purpose.
 
-Servers SHOULD NOT accept requests that begin writing after the end of the file. This would create a sparse file, where some byte ranges are undefined, and HTTP semantics currently has no way of representing such undefined ranges. For example, writing at byte 601 of a file where bytes 0-599 are defined; this would leave byte 600 undefined.
+Servers SHOULD NOT accept requests that begin writing after the end of the resource. This would create a sparse file, where some byte ranges are undefined, and HTTP semantics currently has no way of representing such undefined ranges. For example, writing at byte 601 of a resource where bytes 0-599 are defined; this would leave byte 600 undefined.
 
 Servers that accept sparse writes MUST initialize unwritten regions to not disclose contents of prior writes. This is equivalent to another client or the server writing out any regions that haven't been written by the client; future specifications may define a way for the server to list uninitialized regions, for the client to act on, without needing to perform this step.
 
@@ -75,18 +76,18 @@ Currently, the only defined range unit is "bytes", however this may be other, ye
 
 In the case of "bytes", exactly those bytes are changed. However, a unit MAY define write semantics different from a read. For example, if a Content-Range field identifies an item in a JSON array, a write may add or remove a leading or trailing comma, not technically part of the item itself, in order to keep the resulting document valid.
 
-The client MUST NOT send an `unsatisfied-range` form (e.g. `bytes */1000`), this is not meaningful.
+The client MUST NOT send the unsatisfied-range form (e.g. `bytes */1000`); this is not meaningful.
 
-The client MAY indicate the anticipated final size of the document by providing a `complete-length`, for example `bytes 0-9/10`. This value does not affect the success of the write, however the server MAY use it for other purposes, especially for deciding when an upload in multiple parts has finished.
+The client MAY indicate the anticipated final size of the document by providing a complete-length, for example `bytes 0-11/12`. This value does not affect the success of the write, however the server MAY use it for other purposes, especially for preallocating an optimal amount of space, and deciding when an upload in multiple parts has finished.
 
-If the client does not know or care about the final length of the document, it MAY use `*` in place of `complete-length`. For example, `bytes 0-9/*`. Most random access writes will follow this form.
+If the client does not know or care about the final length of the document, it MAY use `*` in place of complete-length. For example, `bytes 0-11/*`. Most random access writes will follow this form.
 
-Other `Content-` fields in the patch document have the same meaning as if used in the headers of a PUT request.
+Other "Content-" fields in the patch document have the same meaning as if used in the headers of a PUT request.
 
 
 ## The multipart/byteranges media type
 
-The following is a request with a `multipart/byteranges` body to write two ranges in a document:
+The following is a request with a "multipart/byteranges" body to write two ranges in a document:
 
 ~~~ example
 PATCH /uploads/foo HTTP/1.1
@@ -108,12 +109,14 @@ Content-Type: text/plain
 --THIS_STRING_SEPARATES--
 ~~~
 
+The syntax for multipart messages is defined in {{Section 5.1.1 of RFC2046}}.
+
 
 ## The message/byterange media type
 
-When making a request, there is no need for a multipart boundary, and this may be optimized away. This document defines a new media type `message/byterange` with the same semantics as a single byte range in a multipart/byteranges message, but with a simplified syntax.
+When making a request, there is no need for a multipart boundary, and this may be optimized away. This document defines a new media type "message/byterange" with the same semantics as a single byte range in a multipart/byteranges message, but with a simplified syntax.
 
-The `message/byterange` form may be used in a request as so:
+The "message/byterange" form may be used in a request as so:
 
 ~~~ example
 PATCH /uploads/foo HTTP/1.1
@@ -136,21 +139,25 @@ This represents a request to modify a 600-byte document, overwriting 200 bytes o
 
 As an alternative to using PUT to create a new resource, the contents of a resource may be uploaded in segments, each written across several PATCH requests.
 
-A user-agent may use PATCH to recover an upload to an interrupted PUT or PATCH request. The server will store the data sent to it by the user agent, but will not finalize the upload until the final length of the document is known and received.
+A user-agent may also use PATCH to recover from an interrupted PUT request, if it was expected to create a new resource. The server will store the data sent to it by the user agent, but will not finalize the upload until the final length of the document is known and received.
 
-1. The client makes a PUT or PATCH request to a URL, a portion of which is randomly generated by the client, or computed based on a cryptographic hash of the document (the exact algorithm is unimportant to the server and need not be indicated). If a PUT request, the `Content-Length` header is read by the server and stored as the intended final length of the document. If a PATCH request, the Patch field in the `message/byterange` is read for the final length. The final length may also be undefined, and defined in a later request. This first request also has the effect of creating the file.
+1. The client makes a PUT or PATCH request to a URL, a portion of which is randomly generated by the client, or computed based on a cryptographic hash of the document (the exact algorithm is unimportant to the server and need not be indicated). The client includes `If-None-Match: *` to verify the target does not exist. If a PUT request, the Content-Length header is read by the server and stored as the intended final length of the document. If a PATCH request, the Patch field in the "message/byterange" is read for the final length. The final length may also be undefined, and defined in a later request. This first request also has the effect of creating the resource.
 
 2. If any request is interrupted, the client may make a HEAD request to determine how much, if any, of the previous response was stored, and resumes uploading from that point. The server will return 200 (OK), but this may only indicate the write has been saved; the server is not obligated to begin acting on the upload until it is complete.
 
-3. The server detects the completion of the final request when the current received data matches the indicated final length. For example, a `Range: 500-599/600` header indicates a write at the end of the file. The server processes the upload and returns a response for it.
+3. If the client sees from the HEAD response that additional data remains to be uploaded, it may make a PATCH request to resume uploading. Even if no data was uploaded or the resource was not created, the client should attempt creating the resource with PATCH to mitigate the possibility of another interrupted connection with a server that does not save incomplete transfers. However if in response to PATCH, the server reports 405 (Method Not Allowed), 415 (Unsupported Media Type), or 501 (Not Implemented), then the client must resort to a PUT request.
 
-For building POST endpoints that support large uploads, clients can first upload the data, and then process it in a POST request that points to the upload URL.
+4. The server detects the completion of the final request when the current received data matches the indicated final length. For example, a `Content-Range: 500-599/600` field is a write at the end of the resource. The server processes the upload and returns a response for it.
+
+For building POST endpoints that support large uploads, clients can first upload the data to a scratch file as described above, and then process by submitting a POST request that links to the scratch file.
+
+For updating an existing large file, the client can upload to a scratch file, then execute a MOVE ({{Section 9.9 of RFC4918}}) over the intended target.
 
 
 
 ## Example
 
-A single PUT request that creates a new file can be split apart into multiple PATCH requests. Here is an example that uploads a 600-byte document across three 200-byte segments.
+A single PUT request that creates a new resource may be split apart into multiple PATCH requests. Here is an example that uploads a 600-byte document across three 200-byte segments.
 
 The first PATCH request creates the resource:
 
@@ -209,11 +216,11 @@ The server responds with 200 (OK). Since this completely writes out the 600-byte
 
 ## message/byterange media type
 
-The `message/byterange` media type patches the defined byte range to some specified contents.  It is similar to the `multipart/byteranges` media type, except it omits the multipart separator, and so only allows a single range to be specified.
+The "message/byterange" media type patches the defined byte range to some specified contents.  It is similar to the "multipart/byteranges" media type, except it omits the multipart separator, and so only allows a single range to be specified.
 
 It follows the syntax of HTTP message headers and body. It MUST include the Content-Range header field. If the message length is known by the sender, it SHOULD contain the Content-Length header field. Unknown or nonapplicable header fields MUST be ignored.
 
-`field-line` and `message-body` are specified in [RFC9112].
+The field-line and message-body productions are specified in [RFC9112].
 
 ~~~ abnf
 byterange-document = *( field-line CRLF )
@@ -221,17 +228,19 @@ byterange-document = *( field-line CRLF )
                      [ message-body ]
 ~~~
 
-A patch is applied to a document by setting the indicated range of bytes to the contents of the patch message payload. Servers MUST treat an invalid or nonexistent range as an error.
+This document has the same semantics as a single part in a "multipart/byteranges" document ({{Section 5.1.1 of RFC2046}}) or any response with a 206 (Partial Content) status code ({{Section 15.3.7 of RFC9110}}). A "message/byterange" document may be trivially transformed into a "multipart/byteranges" document by prepending a dash-boundary and CRLF, and appending a close-delimiter (a CRLF, dash-boundary, terminating "`--`", and optional CRLF).
 
 
 
 # Caveats
 
-There is no standard way for a Content-Range header to indicate an unknown or indefinite length response starting at a certain offset; the design requires that the sender know the length of the document before transmission. Fixing this would require a new header or a revision of HTTP.
+There is no standard way for a Content-Range header to indicate an unknown or indefinite length response starting at a certain offset; the design of partial content messages requires that the sender know the total length before transmission. However it seems like it should be possible make an indefinite partial content response (e.g. return a continuously growing audio file starting at 4MB). Fixing this would require a new header, update to HTTP, or a revision of HTTP.
 
 This pattern can enable multiple, parallel uploads to a document at the same time. For example, uploading a large log file from multiple devices. However, this document does not define any ways for clients to track the unwritten regions in sparse documents, and the existing conditional request headers will conflict in this usage. This may be addressed in a later document.
 
-Servers do not necessarily have to save the results of an incomplete upload; some clients may prefer that most writes are atomic, and so servers would discard an incomplete request. A mechanism to indicate a preference for atomic vs. non-atomic writes may be defined at a later time.
+Servers do not necessarily have to save the results of an incomplete upload; most clients may prefer that most writes are atomic, and so servers will discard an incomplete request. A mechanism to indicate a preference for atomic vs. non-atomic writes may be defined at a later time.
+
+When a PUT that updates an existing file has been interrupted, it may not possible to know how much of the request was received by the server, and which content already existed. This requires use of a more sophisticated synchronization mechanism that may use a byte range PATCH, but is otherwise outside the scope of this document.
 
 
 
