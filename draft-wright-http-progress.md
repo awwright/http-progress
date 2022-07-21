@@ -140,7 +140,7 @@ The photographer uploaded your image to:
 If this same request took significantly longer (more than 20 seconds), then due to the respond-async preference, the response might look like this instead:
 
 ~~~ example
-HTTP/1.1 102 Processing 
+HTTP/1.1 102 Processing
 Progress: 0/3 "Herding cats"
 Location: </status>
 

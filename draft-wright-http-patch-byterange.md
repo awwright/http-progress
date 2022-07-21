@@ -1,6 +1,8 @@
 ---
+v: 3
 title: Byte Range PATCH
 docname: draft-wright-http-patch-byterange-latest
+submissiontype: independent
 category: exp
 ipr: trust200902
 workgroup: HTTP
@@ -18,11 +20,11 @@ author:
 
 normative:
   RFC2119: Key words for use in RFCs
-  RFC4918: HTTP Extensions for Web Distributed Authoring and Versioning (WebDAV)
   RFC9110: HTTP Semantics
   RFC9112: HTTP/1.1
 
 informative:
+  RFC4918: HTTP Extensions for Web Distributed Authoring and Versioning (WebDAV)
   RFC5789: PATCH Method for HTTP
 
 
@@ -37,7 +39,7 @@ This document specifies a new media type intended for use in PATCH payloads that
 
 # Introduction
 
-HTTP has many features analogous to a filesystem, including reading, writing, metadata, and file listing. While HTTP supports reading byte range offsets using the Range header, it cannot be used in the upload headers, because there is no way to ensure the server understands this optional feature. However, by using a media type that the server must understand, writes to byte ranges with Content-Range header semantics becomes possible.
+HTTP has many features analogous to a filesystem, including reading, writing, metadata, and file listing {{RFC4918}}. While HTTP supports reading byte range offsets using the Range header ({{Section 14 of RFC9110}}), it cannot be used in PUT, because the write would still be executed even when the byte range is unsupported. However, by using a method and media type that the server must understand, writes to byte ranges with Content-Range header semantics is possible.
 
 This technique may also be used for resuming interrupted uploads. Since HTTP is a stateless protocol, there is no way to resume an interrupted request. For downloads this is not an issue: the Range header allows a client to resume a request at the point it left off. However, if an upload is interrupted, no method exists for the client to synchronize its state with the server and only upload the remaining data; the entire request must be retried.
 
@@ -62,17 +64,26 @@ or omit some headers necessary for message transfer.
 
 # Modifying a content range with PATCH
 
-The PATCH method {{RFC5789}} allows a client to modify a resource in a specific way, as specified by the request payload.
+Although the Content-Range header cannot be used in requests directly, it may be used in conjunction with the PATCH method {{RFC5789}} and a media type that specifies a subset of bytes in a document, at a particular offset. This document re-uses the `multipart/byteranges` media type, and defines the `message/byterange` media type, for this purpose.
 
+Servers SHOULD NOT accept requests that begin writing after the end of the file. This would create a sparse file, where some byte ranges are undefined, and HTTP semantics currently has no way of representing such undefined ranges. For example, writing at byte 601 of a file where bytes 0-599 are defined; this would leave byte 600 undefined. Servers that do support these writes MUST initialize unwritten regions to not disclose contents of prior writes (for example, NUL). Better sparse file behavior may be defined in the future.
+
+Servers MUST read a Content-Range field that unambiguously indicates the parts of the document to write to, and produce a 422 or 400 error if none, or more than one, is found. If no specific byte range is detected, this means the client may be using a yet-undefined mechanism to define the byte range.
+
+Currently, the only defined range unit is "bytes", however this may be other, yet-to-be-defined values.
+
+In the case of "bytes", exactly those bytes are changed. However, a unit MAY define write semantics different from a read. For example, if a Content-Range field identifies an item in a JSON array, a write may add or remove a leading or trailing comma, not technically part of the item itself, in order to keep the resulting document valid.
+
+The client MUST NOT send an `unsatisfied-range` form (e.g. `bytes */1000`), this is not meaningful.
+
+The client MAY indicate the anticipated final size of the document by providing a `complete-length`, for example `bytes 0-9/10`. This value does not affect the success of the write, however the server MAY use it for other purposes, especially for deciding when an upload in multiple parts has finished.
+
+If the client does not know or care about the final length of the document, it MAY use `*` in place of `complete-length`. For example, `bytes 0-9/*`. Most random access writes will follow this form.
 
 
 ## The multipart/byteranges media type
 
-By using a `multipart/byteranges` {{RFC9110}} document as a patch file, a client may .
-
-Servers MUST read each part for a byte range that unambiguously indicates the byte range to write to, and produce a 422 or 400 error if none is found. If no specific byte range is detected, this means the client may be using a yet-undefined mechanism to define the byte range.
-
-The `multipart/byteranges` form may be used in a request as so:
+The following is an example of `multipart/byteranges` to write three ranges in a document:
 
 ~~~ example
 PATCH /uploads/foo HTTP/1.1
@@ -116,14 +127,6 @@ Content-Length: 200
 ~~~
 
 This represents a request to modify a 600-byte document, overwriting 200 bytes of it, starting at a 100-byte offset.
-
-
-
-## The Content-Range header in patches
-
-Servers SHOULD NOT accept requests that begin writing after the end of the file. This would create a sparse file, where some byte ranges are undefined, and HTTP semantics currently has no way of representing such undefined ranges. For example, writing at byte 601 of a file where bytes 0-599 are defined; this would leave byte 600 undefined. However, this behavior may be defined in the future.
-
-Currently, the only defined range unit is "bytes", and in this case the contents that are written are the only contents changed on a subsequent read of the entire document. However, a hypothetical new unit MAY define write-specific semantics different from a read, for example, to preserve the syntax. For example, if a Range header is understood to identify the first item in a JSON array, a write to the same range may add or remove a leading or trailing comma, not technically part of the item itself, if necessary to keep the resulting document valid. In all cases, this behavior must be consistent and predictable.
 
 
 
@@ -217,7 +220,7 @@ byterange-document = *( field-line CRLF )
                      [ message-body ]
 ~~~
 
-A patch is applied to a document by changing the range of bytes to the contents of the patch message payload. Servers MUST treat an invalid or nonexistent range as an error.
+A patch is applied to a document by setting the indicated range of bytes to the contents of the patch message payload. Servers MUST treat an invalid or nonexistent range as an error.
 
 
 
