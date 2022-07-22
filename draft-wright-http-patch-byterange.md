@@ -234,13 +234,13 @@ This document has the same semantics as a single part in a "multipart/byteranges
 
 # Caveats
 
-There is no standard way for a Content-Range header to indicate an unknown or indefinite length response starting at a certain offset; the design of partial content messages requires that the sender know the total length before transmission. However it seems like it should be possible make an indefinite partial content response (e.g. return a continuously growing audio file starting at 4MB). Fixing this would require a new header, update to HTTP, or a revision of HTTP.
+There is no standard way for a Content-Range header to indicate an unknown or indefinite length response starting at a certain offset; the design of partial content messages requires that the sender know the total length before transmission. However it seems like it should be possible to generate an indefinite partial content response (e.g. return a continuously growing audio file starting at a 4MB offset). Fixing this would require a new header, update to HTTP, or a revision of HTTP.
 
 This pattern can enable multiple, parallel uploads to a document at the same time. For example, uploading a large log file from multiple devices. However, this document does not define any ways for clients to track the unwritten regions in sparse documents, and the existing conditional request headers will conflict in this usage. This may be addressed in a later document.
 
-Servers do not necessarily have to save the results of an incomplete upload; most clients may prefer that most writes are atomic, and so servers will discard an incomplete request. A mechanism to indicate a preference for atomic vs. non-atomic writes may be defined at a later time.
+Servers do not necessarily have to save the results of an incomplete upload; since most clients prefer atomic writes, many servers will discard an incomplete upload. A mechanism to indicate a preference for atomic vs. non-atomic writes may be defined at a later time.
 
-When a PUT that updates an existing file has been interrupted, it may not possible to know how much of the request was received by the server, and which content already existed. This requires use of a more sophisticated synchronization mechanism that may use a byte range PATCH, but is otherwise outside the scope of this document.
+When a PUT that updates an existing file has been interrupted, it may not possible to know how much of the request was received by the server, and which content already existed. This requires use of a more sophisticated synchronization mechanism, that may use a byte range PATCH, but is otherwise outside the scope of this document.
 
 
 
