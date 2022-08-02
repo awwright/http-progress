@@ -39,9 +39,9 @@ This document specifies a media type for PATCH payloads that overwrites a specif
 
 # Introduction
 
-HTTP has many features analogous to a filesystem, including reading, writing, metadata, and file listing {{RFC4918}}. While HTTP supports reading byte range offsets using the Range header ({{Section 14 of RFC9110}}), it cannot be used in PUT, because the write would still be executed even when the byte range is unsupported. However, by using a method and media type that the server must understand, writes to byte ranges with Content-Range semantics becomes possible.
+Filesystem interfaces typically provide some way to write at a specific position in a file. While HTTP supports reading byte range offsets using the Range header ({{Section 14 of RFC9110}}), this technique cannot generally be used in PUT, because the write may be executed even when the Content-Range header is ignored, causing data corruption. However, by using a method and media type that the server must understand, writes to byte ranges with Content-Range semantics becomes possible.
 
-This may be used as part of a technique to resume interrupted uploads. Since HTTP is stateless, there is no way to resume an interrupted request; instead the client can make a request that completes the partial state change. For downloads, the Range header allows a client to download only the unknown data. However, if an upload is interrupted, no mechanism exists to upload only the remaining data; the entire request must be retried.
+This may be used as part of a technique to protect against interrupted uploads. Since HTTP is stateless, clients can recover from an interrupted connection by making a request that completes the partial state change. For downloads, the Range header allows a client to download only the unknown data. However, if an upload is interrupted, no mechanism exists to upload only the remaining data; the entire request must be retried.
 
 Byte range patches may be used to "fill in these gaps."
 
@@ -74,7 +74,7 @@ In the case of "bytes", exactly those bytes are changed. However, a unit MAY def
 
 The client MUST NOT send the unsatisfied-range form (e.g. `bytes */1000`); this is not meaningful.
 
-The client MAY indicate the anticipated final size of the document by providing a complete-length, for example `bytes 0-11/12`. This value does not affect the success of the write, however the server MAY use it for other purposes, especially for preallocating an optimal amount of space, and deciding when an upload in multiple parts has finished.
+The client MAY indicate the anticipated final size of the document by providing the complete-length form, for example `bytes 0-11/12`. This value does not affect the success of the write, however the server MAY use it for other purposes, especially for preallocating an optimal amount of space, and deciding when an upload in multiple parts has finished.
 
 If the client does not know or care about the final length of the document, it MAY use `*` in place of complete-length. For example, `bytes 0-11/*`. Most random access writes will follow this form.
 
@@ -82,7 +82,7 @@ Other "Content-" fields in the patch document have the same meaning as if used i
 
 Servers SHOULD NOT accept requests that begin writing after the end of the resource. This would create a sparse file, where some byte ranges are undefined, and HTTP semantics currently has no way of representing such undefined ranges. For example, writing at byte 601 of a resource where bytes 0-599 are defined; this would leave byte 600 undefined.
 
-Servers that accept sparse writes MUST initialize unwritten regions to not disclose contents of prior writes. This is equivalent to another client or the server writing out any regions that haven't been written by the client; future specifications may define a way for the server to list uninitialized regions, for the client to act on, without needing to perform this step.
+Servers that accept sparse writes MUST initialize unwritten regions to not disclose contents of existing storage. From the client's perspective, this is equivalent to another client or the server writing out any regions that it did not write to. Future specifications may define a way for the server to list uninitialized regions, for the client to act on, without needing to perform this step.
 
 
 ## The multipart/byteranges media type
@@ -109,7 +109,8 @@ Content-Type: text/plain
 --THIS_STRING_SEPARATES--
 ~~~
 
-The syntax for multipart messages is defined in {{Section 5.1.1 of RFC2046}}.
+The syntax for multipart messages is defined in {{RFC2046, Section 5.1.1}}.
+
 
 
 ## The message/byterange media type
@@ -132,6 +133,8 @@ Content-Type: text/plain
 ~~~
 
 This represents a request to modify a 600-byte document, overwriting 200 bytes of it, starting at a 100-byte offset.
+
+The syntax is defined in {{messagebyterange-media-type}}.
 
 
 
@@ -236,7 +239,7 @@ This document has the same semantics as a single part in a "multipart/byteranges
 
 There is no standard way for a Content-Range header to indicate an unknown or indefinite length response starting at a certain offset; the design of partial content messages requires that the sender know the total length before transmission. However it seems like it should be possible to generate an indefinite partial content response (e.g. return a continuously growing audio file starting at a 4MB offset). Fixing this would require a new header, update to HTTP, or a revision of HTTP.
 
-This pattern can enable multiple, parallel uploads to a document at the same time. For example, uploading a large log file from multiple devices. However, this document does not define any ways for clients to track the unwritten regions in sparse documents, and the existing conditional request headers will conflict in this usage. This may be addressed in a later document.
+This pattern can enable multiple, parallel uploads to a document at the same time. For example, uploading a large log file from multiple devices. However, this document does not define any ways for clients to track the unwritten regions in sparse documents, and the existing conditional request headers are designed to cause conflicts. This may be addressed in a later document.
 
 Servers do not necessarily have to save the results of an incomplete upload; since most clients prefer atomic writes, many servers will discard an incomplete upload. A mechanism to indicate a preference for atomic vs. non-atomic writes may be defined at a later time.
 
