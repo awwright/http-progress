@@ -4,7 +4,7 @@ docname: draft-wright-http-patch-byterange-latest
 submissiontype: independent
 category: exp
 ipr: trust200902
-workgroup: HTTP
+workgroup: HTTP APIs
 keyword:
   - Internet-Draft
   - HTTP
@@ -26,6 +26,7 @@ informative:
   RFC2046: "Multipurpose Internet Mail Extensions (MIME) Part Two: Media Types"
   RFC4918: "HTTP Extensions for Web Distributed Authoring and Versioning (WebDAV)"
   RFC5789: "PATCH Method for HTTP"
+  RFC9292: "Binary Representation of HTTP Messages"
 
 
 
@@ -39,9 +40,11 @@ This document specifies a media type for PATCH payloads that overwrites a specif
 
 # Introduction
 
-Filesystem interfaces typically provide some way to write at a specific position in a file. While HTTP supports reading byte range offsets using the Range header ({{Section 14 of RFC9110}}), this technique cannot generally be used in PUT, because the write may be executed even when the Content-Range header is ignored, causing data corruption. However, by using a method and media type that the server must understand, writes to byte ranges with Content-Range semantics becomes possible.
+Filesystem interfaces typically provide some way to write at a specific position in a file. While HTTP supports reading byte range offsets using the Range header ({{Section 14 of RFC9110}}), this technique cannot generally be used in PUT, because the server may ignore the Content-Range header while executing the write, causing data corruption. However, by using a method and media type that the server must understand, writes to byte ranges with Content-Range semantics becomes possible.
 
-This may be used as part of a technique to protect against interrupted uploads. Since HTTP is stateless, clients can recover from an interrupted connection by making a request that completes the partial state change. For downloads, the Range header allows a client to download only the unknown data. However, if an upload is interrupted, no mechanism exists to upload only the remaining data; the entire request must be retried.
+This media type is intended for use in a wide variety of applications where overwriting specific parts of the file is desired. This includes idempotently writing data to a stream, appending data to a file, overwriting specific byte ranges, or writing to multiple regions in a single operation (for example, appending audio to a recording in progress while updating metadata at the beginning of the file).
+
+It is particularly designed to recover from interrupted uploads. Since HTTP is stateless, clients can recover from an interrupted connection by making a request that completes the partial state change. For downloads, the Range header allows a client to download only the unknown data. However, if an upload is interrupted, no mechanism exists to upload only the remaining data; the entire request must be retried.
 
 Byte range patches may be used to "fill in these gaps."
 
@@ -234,6 +237,35 @@ byterange-document = *( field-line CRLF )
 This document has the same semantics as a single part in a "multipart/byteranges" document ({{Section 5.1.1 of RFC2046}}) or any response with a 206 (Partial Content) status code ({{Section 15.3.7 of RFC9110}}). A "message/byterange" document may be trivially transformed into a "multipart/byteranges" document by prepending a dash-boundary and CRLF, and appending a close-delimiter (a CRLF, dash-boundary, terminating "`--`", and optional CRLF).
 
 
+## message/byterange+bhttp media type
+
+The "message/byterange+bhttp" media type patches the defined byte range to some specified contents.  It has the same semantics as "message/byterange", but follows a syntax closely resembling "message/bhttp"
+
+```
+Request {
+  Framing Indicator (i) = 8,
+  Known-Length Field Section (..),
+  Known-Length Content (..),
+  Padding (..),
+}
+
+Known-Length Field Section {
+  Length (i),
+  Field Line (..) ...,
+}
+
+Known-Length Content {
+  Content Length (i),
+  Content (..),
+}
+
+Field Line {
+  Name Length (i) = 1..,
+  Name (..),
+  Value Length (i),
+  Value (..),
+}
+```
 
 # Caveats
 
