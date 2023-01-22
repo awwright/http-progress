@@ -240,9 +240,9 @@ This document has the same semantics as a single part in a "multipart/byteranges
 
 ## message/byterange+bhttp media type
 
-The "message/byterange+bhttp" media type patches the defined byte range to some specified contents.  It has the same semantics as "message/byterange", but follows a syntax closely resembling "message/bhttp"
+The "message/byterange+bhttp" media type patches the defined byte range to some specified contents.  It has the same semantics as "message/byterange", but follows a syntax closely resembling "message/bhttp" {{RFC9292}}
 
-```
+~~~
 Request {
   Framing Indicator (i) = 8,
   Known-Length Field Section (..),
@@ -266,7 +266,7 @@ Field Line {
   Value Length (i),
   Value (..),
 }
-```
+~~~
 
 # Caveats
 
