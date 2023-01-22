@@ -71,10 +71,6 @@ Although the Content-Range field cannot be used in the request headers without r
 
 Servers MUST read a Content-Range field from the patch document that completely indicates the parts of the target resource to write to, and produce a 422 or 400 error if none is found. (This would mean the client may be using a yet-undefined mechanism to specify the target range.)
 
-Currently, the only defined range unit is "bytes", however this may be other, yet-to-be-defined values.
-
-In the case of "bytes", exactly those bytes are changed. However, a unit MAY define write semantics different from a read, if symmetric behavior would not make sense. For example, if a Content-Range field identifies an item in a JSON array, a write to this item may add or remove a leading or trailing comma, not technically part of the item itself, in order to keep the resulting document well-formed.
-
 The client MUST NOT send the unsatisfied-range form (e.g. `bytes */1000`); this is not meaningful.
 
 The client MAY indicate the anticipated final size of the document by providing the complete-length form, for example `bytes 0-11/12`. This value does not affect the success of the write, however the server MAY use it for other purposes, especially for preallocating an optimal amount of space, and deciding when an upload in multiple parts has finished.
@@ -139,6 +135,12 @@ This represents a request to modify a 600-byte document, overwriting 200 bytes o
 
 The syntax is defined in {{messagebyterange-media-type}}.
 
+
+## Range units
+
+Currently, the only defined range unit is "bytes", however this may be other, yet-to-be-defined values.
+
+In the case of "bytes", exactly those bytes are changed. However, future units may define write semantics different from a read, if symmetric behavior would not make sense. For example, if a Content-Range field identifies an item in a JSON array, a write to this item may add or remove a leading or trailing comma, not technically part of the item itself, in order to keep the resulting document well-formed.
 
 
 # Segmented uploads with PATCH
@@ -215,7 +217,6 @@ Content-Length: 200
 ~~~
 
 The server responds with 200 (OK). Since this completely writes out the 600-byte document, the server may also perform final processing, for example, checking that the document is well formed. The server MAY return an error code if there is a syntax or other error, or in an earlier response as soon as it it able to detect an error, however the exact behavior is left undefined.
-
 
 
 # Registrations
