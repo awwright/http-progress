@@ -169,7 +169,7 @@ This can be an expensive operation that servers are not expected to support. Ser
 As a special case, the "Content-Range" field may omit the "-" and last-pos to indicate insertion that does not overwrite any bytes:
 
 ~~~ abnf
-Content-Range /= range-unit SP first-pos "/" ( complete-length / "*" )
+Content-Range =/ range-unit SP first-pos "/" ( complete-length / "*" )
 ~~~
 
 Splicing operations MUST include a Content-Length field, to indicate the expected length of the part body.
@@ -333,7 +333,7 @@ There is no standard way for a Content-Range header to indicate an unknown or in
 Ideally, this would look something like:
 
 ~~~abnf
-Content-Range /= range-unit SP first-pos "-*/" ( complete-length / "*" )
+Content-Range =/ range-unit SP first-pos "-*/" ( complete-length / "*" )
 ~~~
 
 For example: "`Content-Range: bytes 200-*/*`" would indicate overwriting or appending content, starting at a 200 byte offset.
