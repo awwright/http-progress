@@ -330,6 +330,19 @@ Field Line {
 
 There is no standard way for a Content-Range header to indicate an unknown or indeterminate-length body starting at a certain offset; the design of partial content messages requires that the sender know the total length before transmission. However it seems it should be possible to generate an indeterminate-length partial content response (e.g. return a continuously growing audio file starting at a 4MB offset). Fixing this would require a new header, update to HTTP, or a revision of HTTP.
 
+Ideally, this would look something like:
+
+~~~abnf
+Content-Range /= range-unit SP first-pos "-*/" ( complete-length / "*" )
+~~~
+
+For example: "`Content-Range: bytes 200-*/*`" would indicate overwriting or appending content, starting at a 200 byte offset.
+
+And "`Content-Range: bytes 200-*/4000`" would indicate overwriting an unknown amount of content, but not past 4000 bytes, starting at a 200 byte offset.
+
+Note these are different than "`Content-Range: bytes 200/*`" which would indicate splicing in content at a 200 byte offset.
+
+
 ## Sparse Documents
 
 This pattern can enable multiple, parallel uploads to a document at the same time. For example, uploading a large log file from multiple devices. However, this document does not define any ways for clients to track the unwritten regions in sparse documents, and the existing conditional request headers are designed to cause conflicts. Parallel uploads may requires a byte-level locking scheme or conflict-free operators. This may be addressed in a later document.
