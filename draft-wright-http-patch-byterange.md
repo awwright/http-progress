@@ -86,11 +86,19 @@ The client MAY indicate the anticipated final size of the document by providing 
 
 If the client does not know or care about the final length of the document, it MAY use `*` in place of complete-length. For example, `bytes 0-11/*`. Most random access writes will follow this form.
 
-Other "Content-" fields in the patch document have the same meaning as if used in PUT request with the complete document (patch applied).
+As a special case, a Content-Range where the "last-pos" is omitted indicates that the upload length is indeterminate, and only the starting offset is known:
 
-Servers SHOULD NOT accept requests that write beyond, and not adjacent to, the end of the resource. This would create a sparse file, where some bytes are undefined. For example, writing at byte 601 of a resource where bytes 0-599 are defined; this would leave byte 600 undefined. Servers that accept sparse writes MUST NOT disclose contents of existing storage.
+~~~abnf
+Content-Range =/ range-unit SP first-pos "-/" ( complete-length / "*" )
+~~~
 
-The expected length of the write can be computed from the part fields. If the actual length of the part body mismatches the expected length, this MUST be treated the same as a network interruption at the shorter length, but expecting the longer length. This may involve rolling back the entire request, or saving as many bytes as possible. The client can then recover the same way it would recover from a network error.
+A "Content-Length" part field, if provided, describes the length of the part body.
+
+Other "Content-" part fields in the patch document have the same meaning as if used in PUT request uploading the complete document (patch applied).
+
+Servers SHOULD NOT accept requests that write beyond, and not adjacent to, the end of the resource. This would create a sparse file, where some bytes are undefined. For example, writing at byte 601 of a resource where bytes 0-599 are defined; this would leave byte 600 undefined. Servers that accept sparse writes MUST NOT disclose existing content, and SHOULD fill in undefined regions with zeros.
+
+The expected length of the write can be computed from the part fields. If the actual length of the part body mismatches the expected length, this MUST be treated the same as a network interruption at the shorter length, but expecting the longer length. Recovering from this interruption may involve rolling back the entire request, or saving as many bytes as possible. The client can then recover the same way it would recover from a network error.
 
 
 ## The multipart/byteranges media type
@@ -118,8 +126,6 @@ Content-Type: text/plain
 ~~~
 
 The syntax for multipart messages is defined in {{RFC2046, Section 5.1.1}}. While the body cannot contain the boundary, servers MAY use the Content-Length field to skip to the boundary (potentially ignoring a boundary in the body, which would be an error by the client).
-
-The body of each range MUST be exactly as long as indicated by the Content-Range, unless indicated otherwise by a Content-Length header.
 
 The multipart/byteranges type may be used for operations where multiple regions must be updated at the same time; clients may have an expectation that if there's an interruption, all of the parts will be rolled back.
 
@@ -154,45 +160,27 @@ The syntax is defined in {{messagebyterange-media-type}}.
 The "message/byterange+bhttp" has the same semantics as "message/byterange" but follows a binary format similar to "message/bhttp" {{RFC9292}}, and may be more suitable for some clients and servers, as all variable length strings are tagged with their length.
 
 
-## Appending
-
-An append is when the range being replaced starts inside or at the end of the target document, but extends beyond the end, increasing the document length. For example, writing to bytes 10-19 of a 15 byte document, resulting in a 20 byte document.
-
-Aside from the fact the document size increases, it may be handled the same as an overwrite (below).
-
-## Splicing
-
-A splice is when the range being replaced is a different length than the replacement, shifting the position of the bytes that come after. For example, deleting bytes 0-9 in a 20 byte document, resulting in a 10 byte document. Or prepending 10 bytes to a 20 byte document, resulting in a 30 byte document.
-
-This can be an expensive operation that servers are not expected to support. Servers that do not support splicing will emit an error to clients as they attempt to process the request as an overwrite operation (see below).
-
-As a special case, the "Content-Range" field may omit the "-" and last-pos to indicate insertion that does not overwrite any bytes:
-
-~~~ abnf
-Content-Range =/ range-unit SP first-pos "/" ( complete-length / "*" )
-~~~
-
-Splicing operations MUST include a Content-Length field, to indicate the expected length of the part body.
-
-Clients intending to perform a splice MUST include a Content-Length field, so a server can compute if a patch will be a splice or not before.
-
-[^1]
-
-[^1]: This whole section may need to be removed, and re-introduced using a new field, maybe called "Content-Range-Target" since "Content-Range" was never intended to do anything resembling splicing.
-
-
 ## Overwriting
 
 An overwrite only changes existing bytes, and so does not change the length of the document.
 
-Overwriting operations MAY include a Content-Length field. If provided in overwriting operations, it MUST exactly match the length of the range specified in the Content-Range field. Servers that do not support splicing MUST error when the Content-Length mismatches the length of the range.
+Overwriting operations MAY include a Content-Length field. If provided in overwriting operations, it MUST exactly match the length of the range specified in the Content-Range field. Servers MUST error when the Content-Length mismatches the length of the range.
+
+
+## Appending
+
+An append is when the range being replaced starts inside or at the end of the target document, and extends beyond the end, increasing the document length. For example, writing to bytes 10-19 of a 15 byte document, resulting in a 20 byte document.
+
+Aside from the fact the document size increases, it is the same as an overwrite.
 
 
 ## Range units
 
 Currently, the only defined range unit is "bytes", however this may be other, yet-to-be-defined values.
 
-In the case of "bytes", the bytes that are read are exactly the same as the bytes that are changed. However, other units may define write semantics different from a read, if symmetric behavior would not make sense. For example, if a Content-Range field adds an item in a JSON array, this write may add a leading or trailing comma, not technically part of the item itself, in order to keep the resulting document well-formed. Units that change the overall length of the document might always be classified as "splice" operations.
+In the case of "bytes", the bytes that are read are exactly the same as the bytes that are changed. However, other units may define write semantics different from a read, if symmetric behavior would not make sense. For example, if a Content-Range field adds an item in a JSON array, this write may add a leading or trailing comma, not technically part of the item itself, in order to keep the resulting document well-formed.
+
+Even though the length in alternate units isn't changed, the byte length might. This might only be acceptable to servers storing these values in a database or memory structure, rather than on a byte-based filesystem.
 
 
 # Segmented document creation with PATCH
@@ -333,12 +321,12 @@ There is no standard way for a Content-Range header to indicate an unknown or in
 Ideally, this would look something like:
 
 ~~~abnf
-Content-Range =/ range-unit SP first-pos "-*/" ( complete-length / "*" )
+Content-Range =/ range-unit SP first-pos "-/" ( complete-length / "*" )
 ~~~
 
-For example: "`Content-Range: bytes 200-*/*`" would indicate overwriting or appending content, starting at a 200 byte offset.
+For example: "`Content-Range: bytes 200-/*`" would indicate overwriting or appending content, starting at a 200 byte offset.
 
-And "`Content-Range: bytes 200-*/4000`" would indicate overwriting an unknown amount of content, but not past 4000 bytes, starting at a 200 byte offset.
+And "`Content-Range: bytes 200-/4000`" would indicate overwriting an unknown amount of content, but not past 4000 bytes, starting at a 200 byte offset.
 
 Note these are different than "`Content-Range: bytes 200/*`" which would indicate splicing in content at a 200 byte offset.
 
@@ -357,13 +345,20 @@ Byte range PATCH cannot by itself be used to recover from an interrupted PUT tha
 One technique would be to use a 1xx interim response to indicate a location where the partial upload is being stored. If PUT request is interrupted, the client can make PATCH requests to this temporary, non-atomic location to complete the upload. When the last part is uploaded, the original interrupted PUT request will appear.
 
 
+## Splicing and Binary Diff
+
+Operations more complicated than standard filesystem operations are out of scope for this media type. A feature of byte range patch is an upper limit on the complexity of applying the patch. In contrast, prepending, splicing, replace, or other complicated file operations could potentially require the entire file on disk be rewritten.
+
+
 # Security Considerations
 
 ## Unallocated ranges
 
-The byterange media type technically permits writes to offsets beyond the bound of the file. This may have behavior not be predictable by the user.
+A byterange patch may permit writes to offsets beyond the end of the resource. This may have non-obvious behavior.
 
 Servers will normally only allow patch ranges to start inside or at the immediate end of the representation. Servers supporting sparse files MUST NOT return uninitialized memory or storage contents. Uninitialized regions may be initialized prior to executing the sparse write, or this may be left to the filesystem if it can guarantee this behavior.
+
+At the same time, servers should not automatically write to disk to fill in large unallocated ranges. If supported, unallocated ranges should be optimized away at the storage layer. Otherwise, servers should treat the write the same as a write by the client, and return an error if necessary.
 
 
 ## Document Size Hints
