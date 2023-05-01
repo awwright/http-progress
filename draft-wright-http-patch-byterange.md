@@ -63,18 +63,18 @@ This document uses ABNF as defined in {{!RFC5234}} and imports grammar rules fro
 For brevity, example HTTP requests or responses may add newlines or whitespace,
 or omit some headers necessary for message transfer.
 
-The term "byte" is used in the {{!RFC9110}} sense to mean "octet." Ranges are zero-indexed and inclusive. For example, "bytes 0-0" means the first byte of the document, and "bytes 1-2" is a range with two bytes, starting one byte into the document. Ranges of zero bytes are described by an address offset rather than a range. For example, "at byte 15".
+The term "byte" is used in the {{!RFC9110}} sense to mean "octet." Ranges are zero-indexed and inclusive. For example, "bytes 0-0" means the first byte of the document, and "bytes 1-2" is a range with two bytes, starting one byte into the document. Ranges of zero bytes are described by an address offset rather than a range. For example, "at byte 5" would separate the byte ranges 0-4 and 5-9.
 
 
 # Modifying a content range with PATCH
 
-Although the Content-Range field cannot be used in the request headers without risking data corruption, it may be used in conjunction with the PATCH method {{RFC5789}} as part of a media type whose semantics writes a subset of a document, at a particular byte offset. This document re-uses the "multipart/byteranges" media type, and defines the "message/byterange" media type, for this purpose.
+The Content-Range field in a PUT request requires support by the server in order to be processed correctly. Without specific support, the server's normal behavior would be to ignore the header, replacing the entire resource with just the part that changed, causing data corruption. To mitigate this, Content-Range may be used in conjunction with the PATCH method {{RFC5789}} as part of a media type whose semantics are to write at the specified byte offset. This document re-uses the "multipart/byteranges" media type, and defines the "message/byterange" media type, for this purpose.
 
 A byte range patch lists one or more _parts_. Each part specifies two essential components:
 
 1. Part fields: a list of HTTP fields that specify metadata, including the range being written to, the length of the body, and information about the target document that cannot be listed in the PATCH headers, e.g. Content-Type (where it would describe the patch itself, rather than the document being updated).
 
-2. A part body: the actual data to write to the indicated location.
+2. A part body: the actual data to write to the specified location.
 
 Each part MUST indicate a single contiguous range to be written to. Servers MUST reject byte range patches that don't contain a known range with a 422 or 400 error. (This would mean the client may be using a yet-undefined mechanism to specify the target range.)
 
@@ -151,7 +151,7 @@ The syntax is defined in {{messagebyterange-media-type}}.
 
 ## The message/byterange+bhttp media type
 
-The "message/byterange+bhttp" has the same semantics as "message/byterange" but follows a binary format similar "message/bhttp" {{RFC9292}}, and may be more suitable for some clients and servers, as all variable length strings are tagged with their length.
+The "message/byterange+bhttp" has the same semantics as "message/byterange" but follows a binary format similar to "message/bhttp" {{RFC9292}}, and may be more suitable for some clients and servers, as all variable length strings are tagged with their length.
 
 
 ## Appending
@@ -320,11 +320,11 @@ Field Line {
 }
 ~~~
 
-# Caveats
+# Discussion
 
 [^2]
 
-[^2]: This section may be removed before final publication.
+[^2]: This section to be removed before final publication.
 
 ## Indeterminate Length Uploads
 
@@ -346,6 +346,7 @@ Note these are different than "`Content-Range: bytes 200/*`" which would indicat
 ## Sparse Documents
 
 This pattern can enable multiple, parallel uploads to a document at the same time. For example, uploading a large log file from multiple devices. However, this document does not define any ways for clients to track the unwritten regions in sparse documents, and the existing conditional request headers are designed to cause conflicts. Parallel uploads may requires a byte-level locking scheme or conflict-free operators. This may be addressed in a later document.
+
 
 ## Recovering from interrupted PUT
 
