@@ -329,6 +329,34 @@ Content-Length: 200
 The server responds with 200 (OK). Since this completely writes out the 600-byte document, the server may also perform final processing, for example, checking that the document is well formed. The server MAY return an error code if there is a syntax or other error, or in an earlier response as soon as it it able to detect an error, however the exact behavior is left undefined.
 
 
+# Preserving Incomplete Uploads with "Prefer: transaction" {#prefer-transaction}
+
+The stateless design of HTTP generally implies that a request is atomic (otherwise parties would need to keep track of the state of a request while it's in progress). One benefit of HTTP's stateless design is that a client does not need to be concerned with the complexities of resolving only the first half of an upload being honored, if there's an error partway through.
+
+However, some clients may desire partial state changes, particularly in cases where re-issuing the upload is more expensive (in bandwidth) than the complexity of recovering from an interruption. In these cases, clients will want an incomplete request to be preserved as much as possible, so they may re-synchronize the state and pick up from where the incomplete request was terminated.
+
+The client's preference for atomic or upload-preserving behavior may be signaled by a Prefer header:
+
+~~~
+Prefer: transaction=atomic
+Prefer: transaction=persist
+~~~
+
+The `transaction=atomic` preference indicates that the request SHOULD apply only when a successful response is returned, and not any time during the upload.
+
+The `transaction=persist` preference indicates that uploaded data SHOULD be continuously stored as soon as possible, so that if the upload is interrupted, it is possible to resume the upload from where it left off.
+
+This preference is generally applicable to any HTTP request (and not merely for PATCH or byte range patches). While this is often easier to implement on the server, is much more complicated to recover from, because many more infrequent error cases must be handled, and specifics will vary by server, media type, and resource-specific semantics.
+
+Servers that allow a choice between these options, and honored the client's request, SHOULD indicate this in the response with a "Preference-Applied" response header naming the transaction type. For example:
+
+~~~
+Preference-Applied: transaction=atomic
+Preference-Applied: transaction=persist
+~~~
+
+
+
 # Registrations
 
 ## message/byterange
@@ -444,6 +472,20 @@ Author:
 Change controller:
 : IESG
 
+
+## "transaction" preference
+
+Preference:
+: transaction
+
+Value:
+: either "atomic" or "persist"
+
+Description:
+: Specify if the client would prefer incomplete uploads to be saved, or committed only on success.
+
+Reference:
+: {{prefer-transaction}}
 
 # Discussion
 
