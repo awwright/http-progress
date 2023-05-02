@@ -81,7 +81,7 @@ Each part MUST indicate a single contiguous range to be written to. Servers MUST
 The simplest form to represent a byte range patch is the "message/byterange" media type, which is similar to an HTTP message:
 
 ~~~http
-Content-Range: bytes 4-7/12
+Content-Range: bytes 2-5/12
 
 cdef
 ~~~
