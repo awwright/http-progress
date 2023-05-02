@@ -78,9 +78,26 @@ A byte range patch lists one or more _parts_. Each part specifies two essential 
 
 Each part MUST indicate a single contiguous range to be written to. Servers MUST reject byte range patches that don't contain a known range with a 422 or 400 error. (This would mean the client may be using a yet-undefined mechanism to specify the target range.)
 
-The Content-Range field is used to specify the range to write to for each part:
+The simplest form to represent a byte range patch is the "message/byterange" media type, which is similar to an HTTP message:
 
-The unsatisfied-range form (e.g. `bytes */1000`) is not meaningful, it MUST be treated as a syntax error.
+~~~http
+Content-Range: bytes 4-7/12
+
+cdef
+~~~
+
+This patch represents an instruction to write the four bytes "cdef" at an offset of 2 bytes. A document that used to list the numbers 0-9 on a line, would look like this after applying the patch:
+
+~~~~
+01cdef6789␍␊
+~~~~
+
+Although this example is a text document with a line terminator, patches are only carried as binary data, and can potentially carry or overwrite parts of multi-byte characters.
+
+
+## The Content-Range field
+
+The Content-Range field (as seen inside a patch document) is used to specify the range to write to for each part:
 
 The client MAY indicate the anticipated final size of the document by providing the complete-length form, for example `bytes 0-11/12`. This value does not affect the success of the write, however the server MAY use it for other purposes, especially for preallocating an optimal amount of space, and deciding when an upload in multiple parts has finished.
 
@@ -92,13 +109,35 @@ As a special case, a Content-Range where the "last-pos" is omitted indicates tha
 Content-Range =/ range-unit SP first-pos "-/" ( complete-length / "*" )
 ~~~
 
-A "Content-Length" part field, if provided, describes the length of the part body.
+The unsatisfied-range form (e.g. `bytes */1000`) is not meaningful, it MUST be treated as a syntax error.
 
-Other "Content-" part fields in the patch document have the same meaning as if used in PUT request uploading the complete document (patch applied).
+
+## The Content-Length field
+
+A "Content-Length" part field, if provided, describes the length of the part body. (To describe the size of the entire target resource, see the Content-Range field.)
+
+If provided, it MUST exactly match the length of the range specified in the Content-Range field, and servers MUST error when the Content-Length mismatches the length of the range.
+
+
+## The Content-Type field
+
+A "Content-Type" part field MUST have the same effect as if provided in a PUT request uploading the entire resource (patch applied).
+Its use is typically limited to providing the media type of new resources that don't exist.
+
+
+## Other fields
+
+Other part fields in the patch document SHOULD have the same meaning as if provided in a PUT request uploading the entire resource (patch applied).
+
+Use of such fields SHOULD be limited to cases where the meaning in the HTTP request headers would be different, where they would describe the entire patch, rather than the part. For example, the "Content-Type" field.
+
+
+
+## Applying a patch
 
 Servers SHOULD NOT accept requests that write beyond, and not adjacent to, the end of the resource. This would create a sparse file, where some bytes are undefined. For example, writing at byte 601 of a resource where bytes 0-599 are defined; this would leave byte 600 undefined. Servers that accept sparse writes MUST NOT disclose existing content, and SHOULD fill in undefined regions with zeros.
 
-The expected length of the write can be computed from the part fields. If the actual length of the part body mismatches the expected length, this MUST be treated the same as a network interruption at the shorter length, but expecting the longer length. Recovering from this interruption may involve rolling back the entire request, or saving as many bytes as possible. The client can then recover the same way it would recover from a network error.
+The expected length of the write can be computed from the part fields. If the actual length of the part body mismatches the expected length, this MUST be treated the same as a network interruption at the shorter length, but anticipating the longer length. Recovering from this interruption may involve rolling back the entire request, or saving as many bytes as possible. The client can then recover the same way it would recover from a network error.
 
 
 ## The multipart/byteranges media type
@@ -130,7 +169,7 @@ The syntax for multipart messages is defined in {{RFC2046, Section 5.1.1}}. Whil
 The multipart/byteranges type may be used for operations where multiple regions must be updated at the same time; clients may have an expectation that if there's an interruption, all of the parts will be rolled back.
 
 
-## The message/byterange media type
+## The message/byterange media type {#message-byterange}
 
 When making a request with a single byte range, there is no need for a multipart boundary marker. This document defines a new media type "message/byterange" with the same semantics as a single byte range in a multipart/byteranges message, but with a simplified syntax.
 
@@ -151,27 +190,58 @@ Content-Type: text/plain
 
 This represents a request to modify a 600-byte document, overwriting 200 bytes of it, starting at a 100-byte offset.
 
-The syntax is defined in {{messagebyterange-media-type}}.
+
+### Syntax
+
+The syntax re-uses concepts from the "multipart/byteranges" media type, except it omits the multipart separator, and so only allows a single range to be specified. It is also similar to the "message/http" media type, except the first line (the status line or request line) is omitted; a message/byterange document can be fed into a message/http parser by first prepending a line like "PATCH / HTTP/1.1".
+
+It follows the syntax of HTTP message headers and body. It MUST include the Content-Range header field. If the message length is known by the sender, it SHOULD contain the Content-Length header field. Unknown or nonapplicable header fields MUST be ignored.
+
+The field-line and message-body productions are specified in [RFC9112].
+
+~~~ abnf
+byterange-document = *( field-line CRLF )
+                     CRLF
+                     [ message-body ]
+~~~
+
+This document has the same semantics as a single part in a "multipart/byteranges" document ({{Section 5.1.1 of RFC2046}}) or any response with a 206 (Partial Content) status code ({{Section 15.3.7 of RFC9110}}). A "message/byterange" document may be trivially transformed into a "multipart/byteranges" document by prepending a dash-boundary and CRLF, and appending a close-delimiter (a CRLF, dash-boundary, terminating "`--`", and optional CRLF).
 
 
 
-## The message/byterange+bhttp media type
+
+
+## The message/byterange+bhttp media type {#message-byterange-bhttp}
 
 The "message/byterange+bhttp" has the same semantics as "message/byterange" but follows a binary format similar to "message/bhttp" {{RFC9292}}, and may be more suitable for some clients and servers, as all variable length strings are tagged with their length.
 
+### Syntax
 
-## Overwriting
+~~~
+Request {
+  Framing Indicator (i) = 8,
+  Known-Length Field Section (..),
+  Known-Length Content (..),
+  Padding (..),
+}
 
-An overwrite only changes existing bytes, and so does not change the length of the document.
+Known-Length Field Section {
+  Length (i),
+  Field Line (..) ...,
+}
 
-Overwriting operations MAY include a Content-Length field. If provided in overwriting operations, it MUST exactly match the length of the range specified in the Content-Range field. Servers MUST error when the Content-Length mismatches the length of the range.
+Known-Length Content {
+  Content Length (i),
+  Content (..),
+}
 
-
-## Appending
-
-An append is when the range being replaced starts inside or at the end of the target document, and extends beyond the end, increasing the document length. For example, writing to bytes 10-19 of a 15 byte document, resulting in a 20 byte document.
-
-Aside from the fact the document size increases, it is the same as an overwrite.
+Field Line {
+  Name Length (i) = 1..,
+  Name (..),
+  Value Length (i),
+  Value (..),
+}
+~~~
 
 
 ## Range units
@@ -261,52 +331,119 @@ The server responds with 200 (OK). Since this completely writes out the 600-byte
 
 # Registrations
 
-## message/byterange media type
+## message/byterange
 
-The "message/byterange" media type patches the defined byte range to some specified contents.  It is similar to the "multipart/byteranges" media type, except it omits the multipart separator, and so only allows a single range to be specified.
+Type name:
+: message
 
-It follows the syntax of HTTP message headers and body. It MUST include the Content-Range header field. If the message length is known by the sender, it SHOULD contain the Content-Length header field. Unknown or nonapplicable header fields MUST be ignored.
+Subtype name:
+: byterange
 
-The field-line and message-body productions are specified in [RFC9112].
+Required parameters:
+: N/A
 
-~~~ abnf
-byterange-document = *( field-line CRLF )
-                     CRLF
-                     [ message-body ]
-~~~
+Optional parameters:
+: N/A
 
-This document has the same semantics as a single part in a "multipart/byteranges" document ({{Section 5.1.1 of RFC2046}}) or any response with a 206 (Partial Content) status code ({{Section 15.3.7 of RFC9110}}). A "message/byterange" document may be trivially transformed into a "multipart/byteranges" document by prepending a dash-boundary and CRLF, and appending a close-delimiter (a CRLF, dash-boundary, terminating "`--`", and optional CRLF).
+Encoding considerations:
+: binary
+
+Security considerations:
+: See {{security-considerations}}
+
+Interoperability considerations:
+: See {{message-byterange}} of this document
+
+Published specification:
+: This document
+
+Applications that use this media type:
+: HTTP applications that process filesystem-like writes to locations within a resource.
+
+Fragment identifier considerations:
+: N/A
+
+Additional information:
+
+: <dl spacing="compact">
+  <dt>Deprecated alias names for this type:</dt><dd>N/A</dd>
+  <dt>Magic number(s):</dt><dd>N/A</dd>
+  <dt>File extension(s):</dt><dd>N/A</dd>
+  <dt>Macintosh file type code(s):</dt><dd>N/A</dd>
+  </dl>
+
+Person and email address to contact for further information:
+: See Authors' Addresses section.
+
+Intended usage:
+: COMMON
+
+Restrictions on usage:
+: None.
+
+Author:
+: See Authors' Addresses section.
+
+Change controller:
+: IESG
 
 
-## message/byterange+bhttp media type
+## message/byterange+bhttp
 
-The "message/byterange+bhttp" media type patches the defined byte range to some specified contents.  It has the same semantics as "message/byterange", but follows a syntax closely resembling "message/bhttp" {{RFC9292}}
+Type name:
+: message
 
-~~~
-Request {
-  Framing Indicator (i) = 8,
-  Known-Length Field Section (..),
-  Known-Length Content (..),
-  Padding (..),
-}
+Subtype name:
+: byterange+bhttp
 
-Known-Length Field Section {
-  Length (i),
-  Field Line (..) ...,
-}
+Required parameters:
+: N/A
 
-Known-Length Content {
-  Content Length (i),
-  Content (..),
-}
+Optional parameters:
+: N/A
 
-Field Line {
-  Name Length (i) = 1..,
-  Name (..),
-  Value Length (i),
-  Value (..),
-}
-~~~
+Encoding considerations:
+: binary
+
+Security considerations:
+: See {{security-considerations}}
+
+Interoperability considerations:
+: See {{message-byterange-bhttp}} of this document
+
+Published specification:
+: This document
+
+Applications that use this media type:
+: HTTP applications that process filesystem-like writes to locations within a resource.
+
+Fragment identifier considerations:
+: N/A
+
+Additional information:
+
+: <dl spacing="compact">
+  <dt>Deprecated alias names for this type:</dt><dd>N/A</dd>
+  <dt>Magic number(s):</dt><dd>N/A</dd>
+  <dt>File extension(s):</dt><dd>N/A</dd>
+  <dt>Macintosh file type code(s):</dt><dd>N/A</dd>
+  </dl>
+
+Person and email address to contact for further information:
+: See Authors' Addresses section.
+
+Intended usage:
+: COMMON
+
+Restrictions on usage:
+: None.
+
+Author:
+: See Authors' Addresses section.
+
+Change controller:
+: IESG
+
 
 # Discussion
 
@@ -350,7 +487,7 @@ One technique would be to use a 1xx interim response to indicate a location wher
 Operations more complicated than standard filesystem operations are out of scope for this media type. A feature of byte range patch is an upper limit on the complexity of applying the patch. In contrast, prepending, splicing, replace, or other complicated file operations could potentially require the entire file on disk be rewritten.
 
 
-# Security Considerations
+# Security Considerations {#security-considerations}
 
 ## Unallocated ranges
 
