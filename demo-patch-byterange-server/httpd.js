@@ -100,16 +100,16 @@ async function handlePatch(req, res, filepath, fp){
 	// This is the core of the patch handling code
 	var offset, body;
 	if(req.headers['content-type'] === 'message/byterange'){
-		var headers = Buffer.from([]);
+		var fields = Buffer.from([]);
 		for await (const chunk of req) {
-			headers = Buffer.concat([headers, chunk]);
-			const end = headers.indexOf("\r\n\r\n");
+			fields = Buffer.concat([fields, chunk]);
+			const end = fields.indexOf("\r\n\r\n");
 			if(end >= 0){
-				body = headers.slice(end+4);
-				headers = headers.slice(0, end+4);
+				body = fields.slice(end+4);
+				fields = fields.slice(0, end+4);
 			}
 		}	  
-		const headersAscii = headers.toString();
+		const headersAscii = fields.toString();
 		if(!headersAscii.match(/^([!\x23-'\x2a\x2b\x2d\x2e0-9A-Z\x5e-z\x7c~]+:[\t ]*(?:[!-~](?:[\t -~]+[!-~])?)*[\t ]*\r\n)*\r\n/)){
 			res.statusCode = 415;
 			res.setHeader('Content-Type', 'text/plain');
