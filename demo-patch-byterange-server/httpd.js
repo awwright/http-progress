@@ -2,9 +2,12 @@
 
 const http = require('http');
 const fs = require('fs').promises;
+const { createReadStream } = require('fs');
 const path = require('path');
 
-http.createServer(handleRequest).listen(8080);
+http.createServer(handleRequest).listen(8080, function(){
+	console.log('<http://localhost:8080/>');
+});
 
 async function handleRequest(req, res){
 	const filepath = path.normalize(path.resolve(__dirname, req.url.slice(1)));
@@ -13,6 +16,21 @@ async function handleRequest(req, res){
 		res.end();
 		return;
 	}
+
+	if(filepath===__dirname || filepath===__dirname+'/client.xhtml'){
+		if(req.method === 'GET'){
+			res.statusCode = 200;
+			res.setHeader('Content-Type', 'application/xhtml+xml');
+			const read = createReadStream(__dirname+'/client.xhtml');
+			read.pipe(res);
+		}else{
+			res.statusCode = 405;
+			res.setHeader('Content-Type', 'text/plain');
+			res.end('Method not allowed: '+req.method+'\r\n');
+		}
+		return;
+	}
+
 
 	res.statusCode = 200;
 	res.setHeader('Content-Type', 'text/plain');

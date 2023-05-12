@@ -1,0 +1,197 @@
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en" dir="ltr">
+	<head profile="http://www.w3.org/1999/xhtml/vocab">
+		<meta http-equiv="Content-Type" content="application/xhtml+xml;charset=utf-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1"/>
+		<title>Patch editor</title>
+		<style>/*<![CDATA[*/
+#editor,#editor * { margin:0; padding:0; vertical-align:top; font:1em/1em monospace; font-family: monospace ; }
+#editor { height:1.5em;resize:none;overflow:hidden;font-size:120%; }
+#t { padding:0 2px; }
+#w { position:absolute;opacity:.001; }
+#rowno { max-width: 8ex; white-space: pre; }
+#ascii { max-width: 22ex; white-space: pre; }
+#requests > li { font: 1em/1em courier; }
+		/*]]>*/</style>
+		<script type="application/ecmascript">//<![CDATA[
+document.addEventListener("DOMContentLoaded", onload);
+var rowno, ascii, hex, start = new Uint8Array;
+function onload(){
+	rowno = document.getElementById('rowno');
+	ascii = document.getElementById('ascii');
+	hex = document.getElementById('hex');
+	hex.oninput = runOninput;
+	document.getElementById('targetUri').onchange = runOninput;
+	document.getElementById('reload').onclick = runReload;
+	document.getElementById('format').onchange = computeRequests;
+	document.getElementById('submit').onclick = runSubmit;
+	runReload();
+}
+function runReload(){
+	const matches = hex.value.match(/...?/g) || [];
+	start = new Uint8Array(matches.map(function(a){ return parseInt(a.substring(0,2), 16); }));
+	runOninput();
+}
+function runOninput(){
+	const b = hex.value.substring(0,hex.selectionStart).replace(/[^0-9A-F]/ig,"").replace(/(..)/g,"$1 ").length;
+	hex.value = hex.value.replace(/[^0-9A-F]/ig,"").replace(/(..)/g,"$1 ").replace(/ $/,"").toUpperCase();
+	hex.style.height = 1.5+Math.floor(hex.value.length/48)+"em";
+	for(h="",i=0; i<=hex.value.length/48; i++){
+		h += (1E5+(16*i).toString(16)).slice(-6)+"\n";
+	}
+	rowno.textContent = h;
+	for(h="",i=0; i<hex.value.length; i+=3){
+		c = parseInt(hex.value.substring(i,i+2),16);
+		h +=
+			c<0x20 ? String.fromCharCode(0x2400+c) :
+			c<0x7f ? String.fromCharCode(c) :
+			'\uFFFD';
+	}
+	ascii.textContent = h.replace(/(.{16})/g, "$1\n");
+	if(hex.value[b] === " ") b--;
+	hex.setSelectionRange(b,b);
+	computeRequests();
+}
+function computeRequests(){
+	const matches = hex.value.match(/...?/g) || [];
+	const modified = new Uint8Array(matches.map(function(a){ return parseInt(a.substring(0,2), 16); }));
+	const selectFormat = document.getElementById('format').selectedIndex;
+	const parts = [];
+
+	var currentPart;
+	if(selectFormat >= 1){
+		for(var i=0; i<modified.length; i++){
+			if(modified[i] !== start[i]){
+				if(currentPart){
+					currentPart.data[i-currentPart.start] = modified[i];
+					currentPart.end = i;
+				}else if(parts.length && parts[parts.length-1].end+10 > i){
+					// If the last part ended within 10 bytes, just merge with that part
+					currentPart = parts[parts.length-1];
+					for(var j=currentPart.end+1; j<=i; j++) currentPart.data[j-currentPart.start] = modified[j];
+					currentPart.end = i;
+				}else{
+					currentPart = {start:i, end:i, data:[modified[i]]};
+					parts.push(currentPart);
+				}
+			}else{
+				currentPart = null;
+			}
+		}
+
+		if(!parts.length){
+			requests.innerHTML = '<li>No changes</li>';
+			return;
+		}
+	}
+
+	const url = document.getElementById('targetUri').value;
+
+	switch(selectFormat){
+		case 0:
+			// PUT application/octet-stream
+			requests.innerHTML = '<li><pre></pre></li>';
+			requests.firstChild.firstChild.textContent = ''
+				+ 'PUT '+url+' HTTP/1.1\r\n'
+				+ 'Content-Type: application/octet-stream\r\n'
+				+ 'Content-Length: '+modified.length.toString(10)+'\r\n'
+				+ '\r\n'
+				+ new TextDecoder().decode(new Uint8Array(modified));
+			break;
+		case 1: {
+			// PATCH application/byterange
+			// TODO this is a binary format
+			requests.innerHTML = '<li><pre></pre></li>';
+			requests.firstChild.firstChild.textContent = ''
+				+ 'PATCH '+url+' HTTP/1.1\r\n'
+				+ 'Content-Type: application/byterange\r\n';
+				+ '\r\n';
+			for(var i=0; i<parts.length; i++){
+				requests.firstChild.firstChild.textContent += ''
+					+ '08 0F 0D'
+					+ '\x0dContent-Range\x0200'
+					+ 'Content-Length: '+parts[i].data.length+'\r\n'
+					+ '\r\n'
+					+ parts[i].data.map(function(v){ return v.toString(16)+' '; }).join('')
+					+ '';
+			}
+			break;
+		}
+		case 2: {
+			// PATCH message/byteranges
+			requests.innerHTML = '';
+			for(var i=0; i<parts.length; i++){
+				// Create one li for each HTTP request that must be fired off
+				const e_li = document.createElement('li');
+				e_li.innerHTML = '<pre></pre>';
+				e_li.firstChild.textContent = ''
+					+ 'PATCH '+url+' HTTP/1.1\r\n'
+					+ 'Content-Type: message/byteranges\r\n'
+					+ '\r\n'
+					+ 'Content-Range: bytes '+parts[i].start+'-'+parts[i].end+'/'+modified.length+'\r\n'
+					+ 'Content-Length: '+parts[i].data.length+'\r\n'
+					+ '\r\n'
+					+ new TextDecoder().decode(new Uint8Array(parts[i].data));
+					;
+				requests.appendChild(e_li);
+			}
+			break;
+		}
+		case 3: {
+			// PATCH multipart/byteranges
+			const separator = 'AaB03x'
+			requests.innerHTML = '';
+			requests.innerHTML = '<li><pre></pre></li>';
+			requests.firstChild.firstChild.textContent =
+				'PATCH '+url+' HTTP/1.1\r\n'
+				+ 'Content-Type: message/byteranges\r\n'
+				+ '\r\n'
+				+ '--'+separator
+				;
+			for(var i=0; i<parts.length; i++){
+				requests.firstChild.firstChild.textContent +=
+					'\r\n'
+					+ 'Content-Range: bytes '+parts[i].start+'-'+parts[i].end+'/'+modified.length+'\r\n'
+					+ 'Content-Length: '+parts[i].data.length+'\r\n'
+					+ '\r\n'
+					+ new TextDecoder().decode(new Uint8Array(parts[i].data))
+					+ '\r\n--'+separator
+					;
+			}
+			requests.firstChild.firstChild.textContent += '--\r\n'
+			break;
+		}
+	}
+}
+function runSubmit(){
+	
+}
+		//]]></script>
+	</head>
+	<body class="pagewidth">
+		<main>
+			<h1>Patch editor</h1>
+			<p>Load this file up over HTTP to make HTTP requests: <a href="http://localhost:8080/"><code>http://localhost:8080/</code></a></p>
+			<div><input id="targetUri" type="text" value="/foo.txt"/><button id="reload">⟳ Load</button></div>
+			<table id="editor"><tbody>
+				<tr><td></td><th></th></tr>
+				<tr><th id="rowno">00000000</th><td><textarea id="hex" spellcheck="false" cols="47">40 41 42 43 44 45 46 47 48 49 4A 4B 4C 4D 4E 4F</textarea></td><td id="ascii"></td></tr>
+			</tbody></table>
+			<div>
+				<select id="format">
+					<option>PUT application/octet-stream</option>
+					<option>PATCH application/byterange</option>
+					<option>PATCH message/byteranges</option>
+					<option>PATCH multipart/byteranges</option>
+				</select>
+				<button id="submit">⇪ Submit</button>
+			</div>
+			<ol id="requests">
+				<li><pre>PUT / HTTP/1.1
+	Content-Type: application/octet-stream
+
+	foo bar
+				</pre></li>
+			</ol>
+		</main>
+	</body>
+</html>
