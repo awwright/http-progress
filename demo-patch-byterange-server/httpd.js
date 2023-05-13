@@ -34,6 +34,7 @@ async function handleRequest(req, res){
 
 	res.statusCode = 200;
 	res.setHeader('Content-Type', 'text/plain');
+	res.setHeader('Access-Control-Allow-Origin', '*');
 
 	const fp = await fs.open(filepath, 'r').catch(function(err){
 		// Ignore ENOENT errors
