@@ -60,6 +60,7 @@ function computeRequests(){
 	const matches = hex.value.match(/...?/g) || [];
 	const modified = new Uint8Array(matches.map(function(a){ return parseInt(a.substring(0,2), 16); }));
 	const selectFormat = document.getElementById('format').selectedIndex;
+	const requests = document.getElementById('requests');
 
 	if(selectFormat >= 1){
 		var parts = generateParts(start, modified);
