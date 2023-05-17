@@ -210,6 +210,8 @@ The "application/byteranges" has the same semantics as "multipart/byteranges" bu
 
 ### Syntax
 
+The "Known-Length Field Section", "Known-Length Content", "Indeterminate-Length Field Section", "Indeterminate-Length Content", "Indeterminate-Length Content Chunk", "Field Line" definitions are identical to their definition in message/bhttp. They are used in one or more Known-Length Message and/or Indeterminate-Length Message productions, concatenated together.
+
 ~~~
 Patch {
   Message (..) ...
@@ -239,6 +241,21 @@ Known-Length Field Section {
 Known-Length Content {
   Content Length (i),
   Content (..),
+}
+
+Indeterminate-Length Field Section {
+  Field Line (..) ...,
+  Content Terminator (i) = 0,
+}
+
+Indeterminate-Length Content {
+  Indeterminate-Length Content Chunk (..) ...,
+  Content Terminator (i) = 0,
+}
+
+Indeterminate-Length Content Chunk {
+  Chunk Length (i) = 1..,
+  Chunk (..),
 }
 
 Field Line {
