@@ -92,9 +92,9 @@ Although this example is a text document with a line terminator, patches are onl
 
 ## The Content-Range field
 
-The Content-Range field (as seen inside a patch document) is used to specify the range to write to for each part:
+The Content-Range field (as seen inside a patch document) is used to specify where in the target document the part body will be written.
 
-The client MAY indicate the anticipated final size of the document by providing the complete-length form, for example `bytes 0-11/12`. This value does not affect the outcome of the write, however the server MAY use it for other purposes, especially for preallocating an optimal amount of space, and deciding when an upload in multiple parts has finished.
+The client MAY indicate the anticipated final size of the document by providing the complete-length form, for example `bytes 0-11/12`. This value of complete-length does not affect the write, however the server MAY use it for other purposes, especially for preallocating an optimal amount of space, and deciding when an upload in multiple parts has finished.
 
 If the client does not know or care about the final length of the document, it MAY use `*` in place of complete-length. For example, `bytes 0-11/*`. Most random access writes will follow this form.
 
@@ -119,7 +119,7 @@ If provided, it MUST exactly match the length of the range specified in the Cont
 ## The Content-Type field
 
 A "Content-Type" part field MUST have the same effect as if provided in a PUT request uploading the entire resource (patch applied).
-Its use is typically limited to providing the media type of new resources that don't exist.
+Its use is typically limited to creating resources.
 
 
 ## Other fields
@@ -204,17 +204,30 @@ byterange-document = *( field-line CRLF )
 This document has the same semantics as a single part in a "multipart/byteranges" document ({{Section 5.1.1 of RFC2046}}) or any response with a 206 (Partial Content) status code ({{Section 15.3.7 of RFC9110}}). A "message/byterange" document may be trivially transformed into a "multipart/byteranges" document by prepending a dash-boundary and CRLF, and appending a close-delimiter (a CRLF, dash-boundary, terminating "`--`", and optional CRLF).
 
 
-## The message/byterange+bhttp media type {#message-byterange-bhttp}
+## The application/byteranges media type {#message-binary}
 
-The "message/byterange+bhttp" has the same semantics as "message/byterange" but follows a binary format similar to "message/bhttp" {{RFC9292}}, and may be more suitable for some clients and servers, as all variable length strings are tagged with their length.
+The "application/byteranges" has the same semantics as "multipart/byteranges" but follows a binary format similar to "message/bhttp" {{RFC9292}}, which may be more suitable for some clients and servers, as all variable length strings are tagged with their length.
 
 ### Syntax
 
 ~~~
-Request {
+Patch {
+  Message (..) ...
+}
+
+Known-Length Message {
   Framing Indicator (i) = 8,
   Known-Length Field Section (..),
   Known-Length Content (..),
+  Indeterminate-Length Field Section (..),
+  Padding (..),
+}
+
+Indeterminate-Length Message  {
+  Framing Indicator (i) = 10,
+  Indeterminate-Length Field Section (..),
+  Indeterminate-Length Content (..),
+  Indeterminate-Length Field Section (..),
   Padding (..),
 }
 
@@ -235,6 +248,10 @@ Field Line {
   Value (..),
 }
 ~~~
+
+[^2]
+
+[^2]: It may be advantageous to make the format a proper subset of bhttp, so that an out-of-the-box bhttp parser may be used; but additional fields would be required (e.g. status code), which would have to be ignored or made constant.
 
 
 ## Range units
@@ -409,13 +426,13 @@ Change controller:
 : IESG
 
 
-## message/byterange+bhttp
+## application/byteranges
 
 Type name:
-: message
+: application
 
 Subtype name:
-: byterange+bhttp
+: byteranges
 
 Required parameters:
 : N/A
@@ -430,7 +447,7 @@ Security considerations:
 : See {{security-considerations}}
 
 Interoperability considerations:
-: See {{message-byterange-bhttp}} of this document
+: See {{message-binary}} of this document
 
 Published specification:
 : This document
@@ -480,6 +497,7 @@ Description:
 Reference:
 : {{prefer-transaction}}
 
+
 # Security Considerations {#security-considerations}
 
 ## Unallocated ranges
@@ -504,9 +522,9 @@ In general, servers SHOULD treat the complete-length hint the same as a PUT requ
 
 # Discussion
 
-[^2]
+[^4]
 
-[^2]: This section to be removed before final publication.
+[^4]: This section to be removed before final publication.
 
 ## Indeterminate Length Uploads
 
