@@ -99,20 +99,18 @@ async function handleGet(req, res, filepath, fp){
 
 async function handlePut(req, res, filepath, fp){
 	if(req.headers['content-type'] === 'application/octet-stream'){
-		throw new Error('TODO');
+		// re-create the file, truncate it if it exists
+		fp = await fs.open(filepath, 'w');
+		// fp.truncate(0);
+		const writeStream = fp.createWriteStream();
+		req.pipe(writeStream);
+		return;
 	}else{
 		res.statusCode = 415;
 		res.setHeader('Content-Type', 'text/plain');
 		res.end('Unsupported media type. Supported media types:\r\napplication/octet-stream\r\n');
 		return;
 	}
-
-	// re-create the file, truncate it if it exists
-	fp = await fs.open(filepath, 'w');
-	fp.truncate(0);
-	const writeStream = fp.createWriteStream();
-	req.pipe(writeStream);
-	return;
 }
 
 async function handlePatch(req, res, filepath, fp){
