@@ -13,9 +13,11 @@
 #requests > li { font: 1em/1em courier; }
 		/*]]>*/</style>
 		<script type="application/ecmascript">//<![CDATA[
+"use strict";
 document.addEventListener("DOMContentLoaded", onload);
-var rowno, ascii, hex, start = new Uint8Array;
+var rowno, ascii, hex, ow, start = new Uint8Array;
 function onload(){
+	ow = document.getElementById('ow');
 	rowno = document.getElementById('rowno');
 	ascii = document.getElementById('ascii');
 	hex = document.getElementById('hex');
@@ -36,24 +38,33 @@ async function runReload(){
 	start = new Uint8Array(matches.map(function(a){ return parseInt(a.substring(0,2), 16); }));
 	runOninput();
 }
-function runOninput(){
-	const b = hex.value.substring(0,hex.selectionStart).replace(/[^0-9A-F]/ig,"").replace(/(..)/g,"$1 ").length;
+function runOninput(e){
+	// Figure out how many formatted characters come before the cursor
+	var b = hex.value.substring(0,hex.selectionStart).replace(/[^0-9A-F]/ig,"").replace(/(..)/g,"$1 ").length;
+	// Overwrite the next character in most cases
+	if(ow.checked && e && e.inputType==="insertText" && e.data.length===1){
+		hex.value = hex.value.substring(0, hex.selectionStart) + hex.value.substring(hex.selectionStart+(hex.value[b-1]===' '?2:1));
+	}
+	// Reformat what was just changed
 	hex.value = hex.value.replace(/[^0-9A-F]/ig,"").replace(/(..)/g,"$1 ").replace(/ $/,"").toUpperCase();
 	hex.style.height = 1.5+Math.floor(hex.value.length/48)+"em";
-	for(h="",i=0; i<=hex.value.length/48; i++){
+	// Rerender the ASCII view
+	for(var h="",i=0; i<=hex.value.length/48; i++){
 		h += (1E5+(16*i).toString(16)).slice(-6)+"\n";
 	}
 	rowno.textContent = h;
 	for(h="",i=0; i<hex.value.length; i+=3){
-		c = parseInt(hex.value.substring(i,i+2),16);
+		const c = parseInt(hex.value.substring(i,i+2),16);
 		h +=
 			c<0x20 ? String.fromCharCode(0x2400+c) :
 			c<0x7f ? String.fromCharCode(c) :
 			'\uFFFD';
 	}
 	ascii.textContent = h.replace(/(.{16})/g, "$1\n");
-	if(hex.value[b] === " ") b--;
-	hex.setSelectionRange(b,b);
+	// Set the cursor to the correct position
+	console.log(hex.value[b]);
+	if(hex.value[b-1] === " ") hex.setSelectionRange(b-1, b-1);
+	else hex.setSelectionRange(b, b);
 	computeRequests();
 }
 function computeRequests(){
@@ -243,6 +254,7 @@ async function runSubmit(){
 			<h1>Patch editor</h1>
 			<p>Load this file up over HTTP to make HTTP requests: <code>node httpd.js</code></p>
 			<div><input id="targetUri" type="text" value="/foo.txt"/><button id="reload">⟳ Load</button></div>
+			<div><label><input type="checkbox" id="ow" checked="1"/>Overwrite</label></div>
 			<table id="editor"><tbody>
 				<tr><td></td><th></th></tr>
 				<tr><th id="rowno">00000000</th><td><textarea id="hex" spellcheck="false" cols="47">40 41 42 43 44 45 46 47 48 49 4A 4B 4C 4D 4E 4F</textarea></td><td id="ascii"></td></tr>
