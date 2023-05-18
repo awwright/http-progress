@@ -25,6 +25,7 @@ function onload(){
 	document.getElementById('targetUri').onchange = runOninput;
 	document.getElementById('reload').onclick = runReload;
 	document.getElementById('format').onchange = computeRequests;
+	document.getElementById('preview-format').onchange = computeRequests;
 	document.getElementById('submit').onclick = runSubmit;
 	runReload();
 }
@@ -62,76 +63,100 @@ function runOninput(e){
 	}
 	ascii.textContent = h.replace(/(.{16})/g, "$1\n");
 	// Set the cursor to the correct position
-	console.log(hex.value[b]);
 	if(hex.value[b-1] === " ") hex.setSelectionRange(b-1, b-1);
 	else hex.setSelectionRange(b, b);
 	computeRequests();
 }
 function computeRequests(){
-	const matches = hex.value.match(/...?/g) || [];
-	const modified = new Uint8Array(matches.map(function(a){ return parseInt(a.substring(0,2), 16); }));
-	const selectFormat = document.getElementById('format').selectedIndex;
 	const requests = document.getElementById('requests');
-
-	if(selectFormat >= 1){
-		var parts = generateParts(start, modified);
-		if(!parts.length){
-			requests.innerHTML = '<li>No changes</li>';
-			return;
-		}
+	const requestList = generateRequestObjects();
+	if(requestList.length === 0){
+		requests.innerHTML = '<li>No changes</li>';
+		return;
 	}
 
 	const url = document.getElementById('targetUri').value;
-
+	const previewFormat = document.getElementById('preview-format').selectedIndex;
+	requests.innerHTML = '';
+	for(var i=0; i<requestList.length; i++){
+		// Create one li for each HTTP request that must be fired off
+		const e_li = document.createElement('li');
+		e_li.innerHTML = '<pre></pre>';
+		if(previewFormat === 0){
+			e_li.firstChild.textContent = ''
+				+ requestList[i].method+' '+url+' HTTP/1.1\r\n'
+				+ 'Content-Type: '+requestList[i].headers['Content-Type']+'\r\n'
+				+ '\r\n'
+				+ Array.from(requestList[i].body).map(function(x){ return x.toString(16).padStart(2,'0'); }).join(' ').replace(/(.{47}) /g, function(_,a){ return a+'   '+a.split(' ').map(function(b){ const c = parseInt(b, 16); return c<0x20 ? String.fromCharCode(0x2400+c) :
+			c<0x7f ? String.fromCharCode(c) :
+			'\uFFFD'; }).join('')+'\n'; });
+		}else{
+			e_li.firstChild.textContent = ''
+				+ requestList[i].method+' '+url+' HTTP/1.1\r\n'
+				+ 'Content-Type: '+requestList[i].headers['Content-Type']+'\r\n'
+				+ '\r\n'
+				+ new TextDecoder().decode(requestList[i].body);
+		}
+		requests.appendChild(e_li);
+	}
+}
+function generateRequestObjects(){
+	const matches = hex.value.match(/...?/g) || [];
+	const modified = new Uint8Array(matches.map(function(a){ return parseInt(a.substring(0,2), 16); }));
+	const selectFormat = document.getElementById('format').selectedIndex;
+	const separator = 'BV4I7CIzc34';
+	if(selectFormat >= 2){
+		var parts = generateParts(start, modified);
+		if(!parts.length){
+			return [];
+		}
+	}
 	switch(selectFormat){
-		case 0:
-			// PUT application/octet-stream
-			requests.innerHTML = '<li><pre></pre></li>';
-			requests.firstChild.firstChild.textContent = ''
-				+ 'PUT '+url+' HTTP/1.1\r\n'
-				+ 'Content-Type: application/octet-stream\r\n'
-				+ 'Content-Length: '+modified.length.toString(10)+'\r\n'
-				+ '\r\n'
-				+ new TextDecoder().decode(new Uint8Array(modified));
-			break;
-		case 1: {
-			// PATCH application/byterange
-			// TODO this is a binary format
-			requests.innerHTML = '<li><pre></pre></li>';
-			requests.firstChild.firstChild.textContent = ''
-				+ 'PATCH '+url+' HTTP/1.1\r\n'
-				+ 'Content-Type: application/byterange\r\n';
-				+ '\r\n'
-				+ generateApplicationByteranges(parts, modified.length);
-			break;
-		}
-		case 2: {
-			// PATCH message/byterange
-			requests.innerHTML = '';
-			for(var i=0; i<parts.length; i++){
-				// Create one li for each HTTP request that must be fired off
-				const e_li = document.createElement('li');
-				e_li.innerHTML = '<pre></pre>';
-				e_li.firstChild.textContent = ''
-					+ 'PATCH '+url+' HTTP/1.1\r\n'
-					+ 'Content-Type: message/byterange\r\n'
-					+ '\r\n'
-					+ generateMessageByterange(parts[i], modified.length);
-				requests.appendChild(e_li);
-			}
-			break;
-		}
-		case 3: {
-			// PATCH multipart/byteranges
-			const separator = 'AaB03x';
-			requests.innerHTML = '<li><pre></pre></li>';
-			requests.firstChild.firstChild.textContent =
-				'PATCH '+url+' HTTP/1.1\r\n'
-				+ 'Content-Type: multipart/byteranges\r\n'
-				+ '\r\n'
-				+ generateMultipartByteranges(parts, modified.length, separator);
-			break;
-		}
+		case 0: return [{
+			method: "PUT",
+			credentials: "omit",
+			headers: {
+				"Content-Type": "application/octet-stream",
+			},
+			redirect: "follow",
+			body: modified,
+		}];
+		case 1: return [{
+			method: "PATCH",
+			credentials: "omit",
+			headers: {
+				"Content-Type": "application/byterange",
+			},
+			redirect: "follow",
+			body: generateApplicationByteranges(parts, modified.length),
+		}];
+		case 2: return [{
+			method: "PATCH",
+			credentials: "omit",
+			headers: {
+				"Content-Type": "application/byterange",
+			},
+			redirect: "follow",
+			body: generateApplicationByteranges(parts, modified.length),
+		}];
+		case 3: return parts.map(part => ({
+			method: "PATCH",
+			credentials: "omit",
+			headers: {
+				"Content-Type": "message/byterange",
+			},
+			redirect: "follow",
+			body: generateMessageByterange(part, modified.length),
+		}));
+		case 4: return [{
+			method: "PATCH",
+			credentials: "omit",
+			headers: {
+				"Content-Type": "multipart/byteranges",
+			},
+			redirect: "follow",
+			body: generateMultipartByteranges(parts, modified.length, separator),
+		}];
 	}
 }
 function generateParts(start, modified){
@@ -156,95 +181,73 @@ function generateParts(start, modified){
 	}
 	return parts;
 }
-function generateApplicationByteranges(parts, targetLength){
-	var out = '';
-	for(var i=0; i<parts.length; i++){
-		out += ''
-			+ '08 0F 0D'
-			+ '\x0dContent-Range\x0200'
-			+ 'Content-Length: '+parts[i].data.length+'\r\n'
-			+ '\r\n'
-			+ parts[i].data.map(function(v){ return v.toString(16)+' '; }).join('')
-			+ '';
+function concatBuffer(){
+	// Concatenate multiple byte arrays together
+	// Generate a byte array tagged with its length
+	const arr = new Uint8Array(Array.from(arguments).reduce((a,b)=>a+b.length, 0));
+	for(var i=0, len=0; i<arguments.length; i++){
+		arr.set(arguments[i], len);
+		len += arguments[i].length;
 	}
-	return out;
+	return arr;
+}
+function taggedBuffer(){
+	// Generate a byte array tagged with its length
+	const arr = new Uint8Array(Array.from(arguments).reduce((a,b)=>a+b.length, 4));
+	arr[0] = 2;
+	arr[1] = (arr.length>>16)%0xFF;
+	arr[2] = (arr.length>>8)%0xFF;
+	arr[3] = (arr.length>>0)%0xFF;
+	for(var i=0, len=0; i<arguments.length; i++){
+		arr.set(arguments[i], len);
+		len += arguments[i].length;
+	}
+	return arr;
+}
+function generateApplicationByteranges(parts, targetLength){
+	var out = [];
+	for(var i=0; i<parts.length; i++){
+		out.push(new Uint8Array([8])); // Framing Indicator
+		out.push(taggedBuffer(
+			taggedBuffer('Content-Range'), taggedBuffer(''),
+			taggedBuffer('Content-Length'), taggedBuffer(targetLength.toString()),
+		)); // Known-Length Field Section
+		out.push(taggedBuffer(parts[i].data)); // Known-Length Content
+	}
+	return concatBuffer.apply(null, out);
 }
 function generateMessageByterange(part, targetLength){
-	return (
+	const headers = new TextEncoder().encode(
 		'Content-Range: bytes '+part.start+'-'+part.end+'/'+targetLength+'\r\n'
 		+ 'Content-Length: '+part.data.length+'\r\n'
 		+ '\r\n'
-		+ new TextDecoder().decode(new Uint8Array(part.data))
 	);
+	return concatBuffer(headers, part.data);
 }
 function generateMultipartByteranges(parts, targetLength, separator){
-	var out = '--'+separator;
+	const out = [];
+	out.push(new TextEncoder().encode('--'+separator));
 	for(var i=0; i<parts.length; i++){
-		out +=
+		out.push(new TextEncoder().encode(
 			'\r\n'
 			+ 'Content-Range: bytes '+parts[i].start+'-'+parts[i].end+'/'+targetLength+'\r\n'
 			+ 'Content-Length: '+parts[i].data.length+'\r\n'
 			+ '\r\n'
-			+ new TextDecoder().decode(new Uint8Array(parts[i].data))
-			+ '\r\n--'+separator
-			;
+		));
+		out.push(parts[i].data);
+		out.push(new TextEncoder().encode('\r\n--'+separator));
 	}
-	out += '--\r\n';
-	return out;
+	out.push(new TextEncoder().encode('--\r\n'));
+	return concatBuffer.apply(null, out);
 }
 async function runSubmit(){
 	const url = document.getElementById('targetUri').value;
 	const matches = hex.value.match(/...?/g) || [];
 	const modified = new Uint8Array(matches.map(function(a){ return parseInt(a.substring(0,2), 16); }));
 	const format = document.getElementById('format').selectedIndex;
-	const parts = (format>=1) && generateParts(start, modified);
-	const req = (function(){
-		switch(format){
-			case 0: return fetch(url, {
-				method: "PUT",
-				credentials: "omit",
-				headers: {
-					"Content-Type": "application/octet-stream",
-				},
-				redirect: "follow",
-				body: modified,
-			});
-			case 1: return fetch(url, {
-				method: "PATCH",
-				credentials: "omit",
-				headers: {
-					"Content-Type": "application/byterange",
-				},
-				redirect: "follow",
-				body: generateApplicationByteranges(parts, modified.length),
-			});
-			case 2: return parts.map(part => fetch(url, {
-				method: "PATCH",
-				credentials: "omit",
-				headers: {
-					"Content-Type": "message/byterange",
-				},
-				redirect: "follow",
-				body: generateMessageByterange(part, modified.length),
-			}));
-			case 3: return fetch(url, {
-				method: "PATCH",
-				credentials: "omit",
-				headers: {
-					"Content-Type": "multipart/byteranges",
-				},
-				redirect: "follow",
-				body: generateMultipartByteranges(parts, modified.length, separator),
-			});
-		}
-	})();
-	console.log(req);
-	if(Array.isArray(req)){
-		for(var i=0; i<req.length; i++){
-			console.log(await req[i]);
-		}
-	}else{
-		console.log(await req);
+	const parts = generateRequestObjects();
+	for(var i=0; i<req.length; i++){
+		console.log(await fetch(url, req[i]));
 	}
 }
 		//]]></script>
@@ -261,13 +264,25 @@ async function runSubmit(){
 			</tbody></table>
 			<div>
 				<select id="format">
-					<option>PUT application/octet-stream</option>
-					<option>PATCH application/byterange</option>
-					<option>PATCH message/byteranges</option>
-					<option>PATCH multipart/byteranges</option>
+					<optgroup label="whole document">
+						<option>PUT application/octet-stream</option>
+						<option>PATCH message/byterange (32 byte segments)</option>
+					</optgroup>
+					<optgroup label="differences">
+						<option>PATCH application/byteranges</option>
+						<option>PATCH message/byterange</option>
+						<option>PATCH multipart/byteranges</option>
+					</optgroup>
 				</select>
 				<button id="submit">⇪ Submit</button>
 			</div>
+			<p>Request preview: A best-effort ASCII rendering of the request is shown.</p>
+			<select id="preview-format">
+				<optgroup label="request body display">
+					<option>hex</option>
+					<option>text (best effort)</option>
+				</optgroup>
+			</select>
 			<ol id="requests">
 			</ol>
 		</main>

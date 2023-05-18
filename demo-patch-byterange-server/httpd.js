@@ -92,7 +92,6 @@ async function handleGet(req, res, filepath, fp){
 		res.flushHeaders();
 		// const read = fp.createReadStream({start:0, end:stat.size-1});
 		const read = fp.createReadStream({});
-		console.log(read);
 		read.pipe(res);
 	}
 }
@@ -134,7 +133,6 @@ async function handlePatch(req, res, filepath, fp){
 			return;
 		}
 		const contentRange = headersAscii.match(/^content-range:[\t ]*([!\x23-'\x2a\x2b\x2d\x2e0-9A-Z\x5e-z\x7c~]+) ([0-9]+)-([0-9]+)\/(([0-9]+)|\*)[\t ]*$/im);
-		console.log(contentRange);
 		offset = parseInt(contentRange[2], 10);
 	}else if(req.headers['content-type'] === 'multipart/byteranges'){
 		throw new Error('TODO');
