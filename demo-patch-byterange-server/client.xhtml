@@ -121,15 +121,22 @@ function generateRequestObjects(){
 			redirect: "follow",
 			body: modified,
 		}];
-		case 1: return [{
-			method: "PATCH",
-			credentials: "omit",
-			headers: {
-				"Content-Type": "application/byterange",
-			},
-			redirect: "follow",
-			body: generateApplicationByteranges(parts, modified.length),
-		}];
+		case 1: return Array.from({length: Math.ceil(modified.length/32)}).map(function(_, i){
+			const part = {
+				data: modified.slice(i*32, i*32+32),
+				start: i*32,
+				end: Math.min(i*32 + 32, modified.length)-1,
+			};
+			return {
+				method: "PATCH",
+				credentials: "omit",
+				headers: {
+					"Content-Type": "message/byterange",
+				},
+				redirect: "follow",
+				body: generateMessageByterange(part, modified.length),
+			};
+		});
 		case 2: return [{
 			method: "PATCH",
 			credentials: "omit",
@@ -255,7 +262,8 @@ async function runSubmit(){
 	<body class="pagewidth">
 		<main>
 			<h1>Patch editor</h1>
-			<p>Load this file up over HTTP to make HTTP requests: <code>node httpd.js</code></p>
+			<p>This form lets you load a file and make changes to it, then send just those changes as a PATCH request. To begin, enter the URI of a document to load, then press the "Load" button. The document will load in the text editor. Make changes to it, and use the "Format" drop-down to preview an HTTP request that will apply the changes you've made back to the server.</p>
+			<p>This repo has an HTTP server that will apply these PATCH requests: <code>node httpd.js</code></p>
 			<div><input id="targetUri" type="text" value="/foo.txt"/><button id="reload">⟳ Load</button></div>
 			<div><label><input type="checkbox" id="ow" checked="1"/>Overwrite</label></div>
 			<table id="editor"><tbody>
@@ -276,13 +284,10 @@ async function runSubmit(){
 				</select>
 				<button id="submit">⇪ Submit</button>
 			</div>
-			<p>Request preview: A best-effort ASCII rendering of the request is shown.</p>
-			<select id="preview-format">
-				<optgroup label="request body display">
-					<option>hex</option>
-					<option>text (best effort)</option>
-				</optgroup>
-			</select>
+			<label>Request body display <select id="preview-format">
+				<option>hex</option>
+				<option>text (best effort)</option>
+			</select></label>
 			<ol id="requests">
 			</ol>
 		</main>
