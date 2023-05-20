@@ -42,11 +42,11 @@ async function handleRequest(req, res){
 	});
 	try {
 		if(req.method === 'GET'){
-			return handleGet(req, res, filepath, fp);
+			await handleGet(req, res, filepath, fp);
 		}else if(req.method === 'PUT'){
-			return handlePut(req, res, filepath, fp);
+			await handlePut(req, res, filepath, fp);
 		}else if(req.method === 'PATCH'){
-			return handlePatch(req, res, filepath, fp);
+			await handlePatch(req, res, filepath, fp);
 		}else{
 			res.statusCode = 405;
 			res.setHeader('Content-Type', 'text/plain');
@@ -60,6 +60,7 @@ async function handleRequest(req, res){
 		return;
 	}finally{
 		if(fp) fp.close();
+		console.log(req.method + ' ' + filepath + ' ' + res.statusCode);
 	}
 }
 
@@ -96,10 +97,10 @@ async function handleGet(req, res, filepath, fp){
 	}
 }
 
-async function handlePut(req, res, filepath, fp){
+async function handlePut(req, res, filepath){
 	if(req.headers['content-type'] === 'application/octet-stream'){
 		// re-create the file, truncate it if it exists
-		fp = await fs.open(filepath, 'w');
+		var fp = await fs.open(filepath, 'w');
 		// fp.truncate(0);
 		const writeStream = fp.createWriteStream();
 		req.pipe(writeStream);
@@ -112,44 +113,75 @@ async function handlePut(req, res, filepath, fp){
 	}
 }
 
-async function handlePatch(req, res, filepath, fp){
+async function handlePatch(req, res, filepath){
 	// This is the core of the patch handling code
-	var offset, body;
-	if(req.headers['content-type'] === 'message/byterange'){
-		var fields = Buffer.from([]);
-		for await (const chunk of req) {
-			fields = Buffer.concat([fields, chunk]);
-			const end = fields.indexOf("\r\n\r\n");
-			if(end >= 0){
-				body = fields.slice(end+4);
-				fields = fields.slice(0, end+4);
-			}
-		}	  
-		const headersAscii = fields.toString();
-		if(!headersAscii.match(/^([!\x23-'\x2a\x2b\x2d\x2e0-9A-Z\x5e-z\x7c~]+:[\t ]*(?:[!-~](?:[\t -~]+[!-~])?)*[\t ]*\r\n)*\r\n/)){
+	try {
+		if(req.headers['content-type'] === 'message/byterange'){
+			await handlePatchMessageByterange(req, filepath);
+		}else if(req.headers['content-type'] === 'multipart/byteranges'){
+			await handlePatchMultipartByterange(req, filepath);
+		}else if(req.headers['content-type'] === 'application/byteranges'){
+			await handleApplicationByteranges(req, filepath);
+		}else{
 			res.statusCode = 415;
 			res.setHeader('Content-Type', 'text/plain');
-			res.end('Unsupported media type. Supported media types:\r\nmessage/byterange\r\nmultipart/byteranges\r\napplication/byterange\r\n');
+			res.end('Unsupported media type. Supported media types:\r\nmessage/byterange\r\nmultipart/byteranges\r\napplication/byteranges\r\n');
 			return;
 		}
-		const contentRange = headersAscii.match(/^content-range:[\t ]*([!\x23-'\x2a\x2b\x2d\x2e0-9A-Z\x5e-z\x7c~]+) ([0-9]+)-([0-9]+)\/(([0-9]+)|\*)[\t ]*$/im);
-		offset = parseInt(contentRange[2], 10);
-	}else if(req.headers['content-type'] === 'multipart/byteranges'){
-		throw new Error('TODO');
-	}else if(req.headers['content-type'] === 'application/byterange'){
-		throw new Error('TODO');
-	}else{
+	}catch(err){
+		res.statusCode = 400;
+		res.setHeader('Content-Type', 'text/plain');
+		res.end('Thrown error:\r\n' + err.stack + '\r\n');
+		return;
+	}
+	res.statusCode = 200;
+	res.end();
+}
+
+async function handlePatchMessageByterange(req, filepath){
+	var fields = Buffer.from([]);
+	var offset;
+	var body;
+	for await (const chunk of req) {
+		fields = Buffer.concat([fields, chunk]);
+		const end = fields.indexOf("\r\n\r\n");
+		if(end >= 0){
+			body = fields.slice(end+4);
+			fields = fields.slice(0, end+4);
+		}
+	}
+	const headersAscii = fields.toString();
+	if(!headersAscii.match(/^([!\x23-'\x2a\x2b\x2d\x2e0-9A-Z\x5e-z\x7c~]+:[\t ]*(?:[!-~](?:[\t -~]+[!-~])?)*[\t ]*\r\n)*\r\n/)){
 		res.statusCode = 415;
 		res.setHeader('Content-Type', 'text/plain');
 		res.end('Unsupported media type. Supported media types:\r\nmessage/byterange\r\nmultipart/byteranges\r\napplication/byterange\r\n');
 		return;
 	}
+	const contentRange = headersAscii.match(/^content-range:[\t ]*([!\x23-'\x2a\x2b\x2d\x2e0-9A-Z\x5e-z\x7c~]+) ([0-9]+)-([0-9]+)\/(([0-9]+)|\*)[\t ]*$/im);
+	offset = parseInt(contentRange[2], 10);
 
 	// reopen the file for writing, append if exists, create if not exists
-	fp = await fs.open(filepath, 'a');
+	var fp = await fs.open(filepath, 'a');
 	const writeStream = fp.createWriteStream({start: offset});
 	writeStream.write(body);
 	req.pipe(writeStream);
-	res.end('\r\n');
+	req.once('end', function(){ fp.close(); });
+	return new Promise(function(resolve, reject){ writeStream.once('close', resolve); writeStream.once('error', reject); });
+}
+
+async function handlePatchMultipartByterange(req){
+	throw new Error('TODO');
+	var fields, content, contentOffset, contentLength;
+	return [fields, content, contentOffset, contentLength];
+}
+
+async function handleApplicationByteranges(req){
+	throw new Error('TODO');
+	var fields, content, contentOffset, contentLength;
+	return [fields, content, contentOffset, contentLength];
+}
+
+function applyPart(offset, length, stream){
+
 }
 

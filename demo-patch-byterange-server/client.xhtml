@@ -121,11 +121,11 @@ function generateRequestObjects(){
 			redirect: "follow",
 			body: modified,
 		}];
-		case 1: return Array.from({length: Math.ceil(modified.length/32)}).map(function(_, i){
+		case 1: return Array.from({length: Math.ceil(modified.length/64)}).map(function(_, i){
 			const part = {
-				data: modified.slice(i*32, i*32+32),
-				start: i*32,
-				end: Math.min(i*32 + 32, modified.length)-1,
+				data: modified.slice(i*64, i*64+64),
+				start: i*64,
+				end: Math.min(i*64 + 64, modified.length)-1,
 			};
 			return {
 				method: "PATCH",
@@ -141,7 +141,7 @@ function generateRequestObjects(){
 			method: "PATCH",
 			credentials: "omit",
 			headers: {
-				"Content-Type": "application/byterange",
+				"Content-Type": "application/byteranges",
 			},
 			redirect: "follow",
 			body: generateApplicationByteranges(parts, modified.length),
@@ -253,8 +253,8 @@ async function runSubmit(){
 	const modified = new Uint8Array(matches.map(function(a){ return parseInt(a.substring(0,2), 16); }));
 	const format = document.getElementById('format').selectedIndex;
 	const parts = generateRequestObjects();
-	for(var i=0; i<req.length; i++){
-		console.log(await fetch(url, req[i]));
+	for(var i=0; i<parts.length; i++){
+		console.log(await fetch(url, parts[i]));
 	}
 }
 		//]]></script>
@@ -274,7 +274,7 @@ async function runSubmit(){
 				<select id="format">
 					<optgroup label="whole document">
 						<option>PUT application/octet-stream</option>
-						<option>PATCH message/byterange (32 byte segments)</option>
+						<option>PATCH message/byterange (64 byte segments)</option>
 					</optgroup>
 					<optgroup label="differences">
 						<option>PATCH application/byteranges</option>
