@@ -57,6 +57,7 @@ async function handleRequest(req, res){
 		res.statusCode = 500;
 		res.setHeader('Content-Type', 'text/plain');
 		res.end(err.stack+'\r\n');
+		console.error(err.stack);
 		return;
 	}finally{
 		if(fp) fp.close();
@@ -129,6 +130,7 @@ async function handlePatch(req, res, filepath){
 			return;
 		}
 	}catch(err){
+		if(err instanceof ReferenceError || err instanceof RangeError) throw err;
 		res.statusCode = 400;
 		res.setHeader('Content-Type', 'text/plain');
 		res.end('Thrown error:\r\n' + err.stack + '\r\n');
@@ -170,9 +172,170 @@ async function handlePatchMessageByterange(req, filepath){
 }
 
 async function handlePatchMultipartByterange(req){
-	throw new Error('TODO');
-	var fields, content, contentOffset, contentLength;
-	return [fields, content, contentOffset, contentLength];
+	var fields = "";
+	var body = Buffer.from([]);
+	var contentOffset, contentLength;
+	var si = 0;
+	var state = 0;
+	var boundary_state = 0;
+	// *(*text CRLF) dash-boundary
+	const s_preamble_text_or_dash_boundary = si++;
+	const s_preamble_text_or_CR = si++;
+	const s_preamble_CRLF = si++;
+	const s_0dashboundary_1 = si++;
+	const s_0dashboundary_boundary = si++; // DIGIT / ALPHA / '()+_,-./:=?
+	const s_0dashboundary_padding = si++;
+	const s_0dashboundary_CRLF = si++;
+	const s_message_field_start_or_CR = si++;
+	const s_message_field_or_CR = si++;
+	const s_message_field_CRLF = si++;
+	const s_message_fields_CRLF = si++;
+	const s_message_body = si++;
+	const s_message_body_or_delimiter_LF = si++;
+	const s_message_body_or_delimiter_dash = si++;
+	const s_message_body_or_delimiter_dashdash = si++;
+	const s_message_body_or_delimiter_boundary = si++;
+	const s_message_body_or_delimiter_end = si++;
+	const s_message_body_or_delimiter_enddash = si++;
+	const s_void = si++;
+	var boundary_s = '';
+	var boundary = [];
+	var potential_body = [];
+	for await (const chunk of req) {
+		for(var i=0; i<chunk.length; i++){
+			const c = chunk[i];
+			console.log(state, c.toString(16), c<0x20 ? String.fromCharCode(0x2400+c) : String.fromCharCode(c), boundary_state, boundary_s[boundary_state]);
+			switch(state){
+				case s_preamble_text_or_dash_boundary:
+					if(c===0x0D) state = s_preamble_CRLF; // CR
+					else if(c===0x2D) state = s_0dashboundary_1; // "-"
+					else if(c<=0x1F || c===0x0A || c>=0x7F) throw new Error;
+					else state = s_preamble_text_or_dash_boundary;
+					break;
+				case s_preamble_text_or_CR:
+					if(c===0x0A) state = s_preamble_text_or_dash_boundary; // LF
+					else throw new Error;
+					break;
+				case s_preamble_CRLF:
+					if(c===0x0A) state = s_preamble_text_or_dash_boundary;
+					else throw new Error;
+					break;
+				case s_0dashboundary_1:
+					if(c===0x2D) state = s_0dashboundary_boundary;
+					else throw new Error;
+					break;
+				case s_0dashboundary_boundary:
+					// DIGIT / ALPHA / '()+_,-./:=?
+					if(c>=0x27 && c<=0x7A && c!==0x2A && c!==0x2A && c!==0x3B && c!==0x3C && c!==0x5B && c!==0x5C && c!==0x5D && c!==0x5E){
+						boundary.push(c);
+						boundary_s += String.fromCharCode(c);
+						if(boundary_s.length > 68) throw new Error;
+					}else if(c==0x0D) state = s_0dashboundary_CRLF; // CR
+					else throw new Error;
+					break;
+				case s_0dashboundary_CRLF:
+					if(c===0x0A) state = s_message_field_start_or_CR; // LF
+					else throw new Error;
+					break;
+				case s_message_field_start_or_CR:
+					if(c>=0x20 && c<=0x7F){
+						// Once we read a header, a CRLF means the start of a new header and not the end of the headers
+						fields += String.fromCharCode(c);
+						state = s_message_field_or_CR;
+					}
+					else if(c===0x0D) state = s_message_fields_CRLF; // CR
+					else throw new Error;
+					break;
+				case s_message_field_or_CR:
+					if(c>=0x20 && c<=0x7F){
+						// Once we read a header, a CRLF means the start of a new header and not the end of the headers
+						fields += String.fromCharCode(c);
+						state = s_message_field_or_CR;
+					}
+					else if(c===0x0D) state = s_message_field_CRLF; // CR
+					else throw new Error;
+					break;
+				case s_message_field_CRLF:
+					if(c===0x0A) state = s_message_field_start_or_CR; // LF
+					else throw new Error;
+					break;
+				case s_message_fields_CRLF:
+					// The end of all of the headers
+					if(c===0x0A){ // LF
+						state = s_message_body;
+						body_start = i;
+					}
+					else throw new Error;
+					break;
+				case s_message_body:
+					if(c===0x0D) state = s_message_body_or_delimiter_LF; // CR
+					else state = s_message_body;
+					break;
+				case s_message_body_or_delimiter_LF:
+					if(c===0x0A) state = s_message_body_or_delimiter_dash; // "-"
+					else state = s_message_body;
+					break;
+				case s_message_body_or_delimiter_dash:
+					if(c===0x2D) state = s_message_body_or_delimiter_dashdash; // "-"
+					else state = s_message_body;
+					break;
+				case s_message_body_or_delimiter_dashdash:
+					if(c===0x2D) state = s_message_body_or_delimiter_boundary; // LF
+					else state = s_message_body;
+					break;
+				case s_message_body_or_delimiter_boundary:
+					if(c === boundary[boundary_state]){
+						boundary_state++;
+						if(boundary_state===boundary.length){
+							state = s_message_body_or_delimiter_end;
+							boundary_state = 0;
+						}
+					}else{
+						state = s_message_body;
+						boundary_state = 0;
+					}
+					break;
+				case s_message_body_or_delimiter_end:
+					if(c===0x2D) state = s_message_body_or_delimiter_enddash;
+					else if(c===0x0D) state = s_0dashboundary_CRLF;
+					else throw new Error;
+					break;
+				case s_message_body_or_delimiter_enddash:
+					if(c===0x2D) state = s_void;
+					else throw new Error;
+					break;
+				case s_void:
+					break;
+			}
+		}
+		// Try different behaviors to handle the end of the chunk depending on what state we're in
+		switch(state){
+			case s_message_body:
+				emitChunk(chunk.slice(body_start, i));
+				body_start = 0;
+				break;
+			case s_message_body_or_delimiter_LF:
+				emitChunk(chunk.slice(body_start, i-1));
+				break;
+			case s_message_body_or_delimiter_dash:
+				emitChunk(chunk.slice(body_start, i-2));
+				break;
+			case s_message_body_or_delimiter_dashdash:
+				emitChunk(chunk.slice(body_start, i-3));
+				break;
+			case s_message_body_or_delimiter_boundary:
+				emitChunk(chunk.slice(body_start, i-3-boundary_state));
+				break;
+			case s_message_body_or_delimiter_end:
+				break;
+			case s_message_body_or_delimiter_enddash:
+				break;
+		}
+	}
+
+	function emitChunk(){
+
+	}
 }
 
 async function handleApplicationByteranges(req){
