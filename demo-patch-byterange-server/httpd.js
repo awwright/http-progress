@@ -154,9 +154,9 @@ async function handlePatchMessageByterange(req, filepath){
 	}
 	const headersAscii = fields.toString();
 	if(!headersAscii.match(/^([!\x23-'\x2a\x2b\x2d\x2e0-9A-Z\x5e-z\x7c~]+:[\t ]*(?:[!-~](?:[\t -~]+[!-~])?)*[\t ]*\r\n)*\r\n/)){
-		res.statusCode = 415;
+		res.statusCode = 400;
 		res.setHeader('Content-Type', 'text/plain');
-		res.end('Unsupported media type. Supported media types:\r\nmessage/byterange\r\nmultipart/byteranges\r\napplication/byterange\r\n');
+		res.end('Syntax error.\r\n');
 		return;
 	}
 	const contentRange = headersAscii.match(/^content-range:[\t ]*([!\x23-'\x2a\x2b\x2d\x2e0-9A-Z\x5e-z\x7c~]+) ([0-9]+)-([0-9]+)\/(([0-9]+)|\*)[\t ]*$/im);
@@ -171,7 +171,7 @@ async function handlePatchMessageByterange(req, filepath){
 	return new Promise(function(resolve, reject){ writeStream.once('close', resolve); writeStream.once('error', reject); });
 }
 
-async function handlePatchMultipartByterange(req){
+async function handlePatchMultipartByterange(req, filepath){
 	var fields = "";
 	var body = Buffer.from([]);
 	var contentOffset, contentLength;
@@ -190,21 +190,24 @@ async function handlePatchMultipartByterange(req){
 	const s_message_field_or_CR = si++;
 	const s_message_field_CRLF = si++;
 	const s_message_fields_CRLF = si++;
-	const s_message_body = si++;
-	const s_message_body_or_delimiter_LF = si++;
+	const s_message_body_or_delimiter_CR = si++;
+	const s_message_body_or_delimiter_CRLF = si++;
 	const s_message_body_or_delimiter_dash = si++;
 	const s_message_body_or_delimiter_dashdash = si++;
 	const s_message_body_or_delimiter_boundary = si++;
 	const s_message_body_or_delimiter_end = si++;
 	const s_message_body_or_delimiter_enddash = si++;
+	const s_message_body_or_delimiter_endCRLF = si++;
 	const s_void = si++;
+	const s_names = [ 's_preamble_text_or_dash_boundary', 's_preamble_text_or_CR', 's_preamble_CRLF', 's_0dashboundary_1', 's_0dashboundary_boundary', 's_0dashboundary_padding', 's_0dashboundary_CRLF', 's_message_field_start_or_CR', 's_message_field_or_CR', 's_message_field_CRLF', 's_message_fields_CRLF', 's_message_body', 's_message_body_or_delimiter_LF', 's_message_body_or_delimiter_dash', 's_message_body_or_delimiter_dashdash', 's_message_body_or_delimiter_boundary', 's_message_body_or_delimiter_end', 's_message_body_or_delimiter_enddash', 's_message_body_or_delimiter_CR', 's_message_body_or_delimiter_CRLF', 's_void'];
 	var boundary_s = '';
 	var boundary = [];
-	var potential_body = [];
+	var body_chunks = [];
+	var body_chunks_maybe = [];
 	for await (const chunk of req) {
-		for(var i=0; i<chunk.length; i++){
-			const c = chunk[i];
-			console.log(state, c.toString(16), c<0x20 ? String.fromCharCode(0x2400+c) : String.fromCharCode(c), boundary_state, boundary_s[boundary_state]);
+		for(var chunk_byte=0; chunk_byte<chunk.length; chunk_byte++){
+			const c = chunk[chunk_byte];
+			console.log(s_names[state], c.toString(16), c<0x20 ? String.fromCharCode(0x2400+c) : String.fromCharCode(c), boundary_state, boundary_s[boundary_state]);
 			switch(state){
 				case s_preamble_text_or_dash_boundary:
 					if(c===0x0D) state = s_preamble_CRLF; // CR
@@ -234,71 +237,113 @@ async function handlePatchMultipartByterange(req){
 					else throw new Error;
 					break;
 				case s_0dashboundary_CRLF:
+					fields = '';
 					if(c===0x0A) state = s_message_field_start_or_CR; // LF
 					else throw new Error;
 					break;
 				case s_message_field_start_or_CR:
-					if(c>=0x20 && c<=0x7F){
-						// Once we read a header, a CRLF means the start of a new header and not the end of the headers
-						fields += String.fromCharCode(c);
-						state = s_message_field_or_CR;
-					}
+					// Once we read a header, a CRLF means the start of a new header and not the end of the headers
+					if(c>=0x20 && c<=0x7F) state = s_message_field_or_CR;
 					else if(c===0x0D) state = s_message_fields_CRLF; // CR
 					else throw new Error;
+					fields += String.fromCharCode(c);
 					break;
 				case s_message_field_or_CR:
-					if(c>=0x20 && c<=0x7F){
-						// Once we read a header, a CRLF means the start of a new header and not the end of the headers
-						fields += String.fromCharCode(c);
-						state = s_message_field_or_CR;
-					}
+					if(c>=0x20 && c<=0x7F) state = s_message_field_or_CR;
 					else if(c===0x0D) state = s_message_field_CRLF; // CR
 					else throw new Error;
+					fields += String.fromCharCode(c);
 					break;
 				case s_message_field_CRLF:
 					if(c===0x0A) state = s_message_field_start_or_CR; // LF
 					else throw new Error;
+					fields += String.fromCharCode(c);
 					break;
 				case s_message_fields_CRLF:
 					// The end of all of the headers
 					if(c===0x0A){ // LF
-						state = s_message_body;
-						body_start = i;
+						fields += String.fromCharCode(c);
+						state = s_message_body_or_delimiter_CR;
+
+						// Parse the headers
+						const headersAscii = fields.toString();
+						fields = '';
+						if(!headersAscii.match(/^([!\x23-'\x2a\x2b\x2d\x2e0-9A-Z\x5e-z\x7c~]+:[\t ]*(?:[!-~](?:[\t -~]+[!-~])?)*[\t ]*\r\n)*\r\n/)){
+							throw new Error;
+						}
+						const contentRange = headersAscii.match(/^content-range:[\t ]*([!\x23-'\x2a\x2b\x2d\x2e0-9A-Z\x5e-z\x7c~]+) ([0-9]+)-([0-9]+)\/(([0-9]+)|\*)[\t ]*$/im);
+						const chunkStart = parseInt(contentRange[2], 10);
+										
+						// reopen the file for writing, append if exists, create if not exists
+						if(fp) fp.close();
+						var fp = await fs.open(filepath, 'a');
+						if(writeStream) writeStream.close();
+						var writeStream = fp.createWriteStream({start: chunkStart});
 					}
 					else throw new Error;
 					break;
-				case s_message_body:
-					if(c===0x0D) state = s_message_body_or_delimiter_LF; // CR
-					else state = s_message_body;
+				case s_message_body_or_delimiter_CR:
+					if(c===0x0D){
+						state = s_message_body_or_delimiter_CRLF; // CR
+						write_body_maybe(chunk, chunk_byte);
+					}else{
+						state = s_message_body_or_delimiter_CR;
+						write_body(chunk, chunk_byte);
+					}
 					break;
-				case s_message_body_or_delimiter_LF:
-					if(c===0x0A) state = s_message_body_or_delimiter_dash; // "-"
-					else state = s_message_body;
+				case s_message_body_or_delimiter_CRLF:
+					if(c===0x0A){
+						state = s_message_body_or_delimiter_dash; // "-"
+						write_body_maybe(chunk, chunk_byte);
+					}else{
+						state = s_message_body_or_delimiter_CR;
+						release();
+					}
 					break;
 				case s_message_body_or_delimiter_dash:
-					if(c===0x2D) state = s_message_body_or_delimiter_dashdash; // "-"
-					else state = s_message_body;
+					if(c===0x2D){
+						state = s_message_body_or_delimiter_dashdash; // "-"
+						write_body_maybe(chunk, chunk_byte);
+					}else{
+						state = s_message_body_or_delimiter_CR;
+						release();
+					}
 					break;
 				case s_message_body_or_delimiter_dashdash:
-					if(c===0x2D) state = s_message_body_or_delimiter_boundary; // LF
-					else state = s_message_body;
+					if(c===0x2D){
+						state = s_message_body_or_delimiter_boundary; // LF
+						write_body_maybe(chunk, chunk_byte);
+					}else{
+						state = s_message_body_or_delimiter_CR;
+						release();
+					}
 					break;
 				case s_message_body_or_delimiter_boundary:
 					if(c === boundary[boundary_state]){
 						boundary_state++;
 						if(boundary_state===boundary.length){
 							state = s_message_body_or_delimiter_end;
+							body_chunks_maybe = [];
+							writeStream.close();
+							writeStream = null;
 							boundary_state = 0;
+						}else{
+							write_body_maybe(chunk, chunk_byte);
 						}
 					}else{
-						state = s_message_body;
+						state = s_message_body_or_delimiter_CR;
 						boundary_state = 0;
+						release();
 					}
 					break;
 				case s_message_body_or_delimiter_end:
-					if(c===0x2D) state = s_message_body_or_delimiter_enddash;
-					else if(c===0x0D) state = s_0dashboundary_CRLF;
-					else throw new Error;
+					if(c===0x0D) state = s_message_body_or_delimiter_endCRLF;
+					else if(c===0x2D) state = s_message_body_or_delimiter_enddash;
+					else throw new Error('Expected CRLF or "--"');
+					break;
+				case s_message_body_or_delimiter_endCRLF:
+					if(c===0x0A) state = s_message_field_start_or_CR;
+					else throw new Error('Expected LF');
 					break;
 				case s_message_body_or_delimiter_enddash:
 					if(c===0x2D) state = s_void;
@@ -308,34 +353,54 @@ async function handlePatchMultipartByterange(req){
 					break;
 			}
 		}
-		// Try different behaviors to handle the end of the chunk depending on what state we're in
-		switch(state){
-			case s_message_body:
-				emitChunk(chunk.slice(body_start, i));
-				body_start = 0;
-				break;
-			case s_message_body_or_delimiter_LF:
-				emitChunk(chunk.slice(body_start, i-1));
-				break;
-			case s_message_body_or_delimiter_dash:
-				emitChunk(chunk.slice(body_start, i-2));
-				break;
-			case s_message_body_or_delimiter_dashdash:
-				emitChunk(chunk.slice(body_start, i-3));
-				break;
-			case s_message_body_or_delimiter_boundary:
-				emitChunk(chunk.slice(body_start, i-3-boundary_state));
-				break;
-			case s_message_body_or_delimiter_end:
-				break;
-			case s_message_body_or_delimiter_enddash:
-				break;
+
+		// Move all chunks that are all definitely body to output
+		// Do it this way to try pass chunks (packets) that resemble the incoming chunks as much as possible
+		while(body_chunks.length && (body_chunks[0].end===body_chunks[0].chunk.length || body_chunks_maybe.length===0)){
+			const chunk_data = body_chunks.shift();
+			writeStream.write(chunk_data.chunk.slice(chunk_data.start, chunk_data.end));
+		}
+
+	}
+
+	function write_body(chunk, chunk_byte){
+		const current = body_chunks[body_chunks.length-1];
+		if(body_chunks.length===0 || current.chunk!==chunk || (current.chunk===chunk && current.end!==chunk_byte)){
+			body_chunks.push({chunk, start:chunk_byte, end:chunk_byte+1});
+		}else if(current.end === chunk_byte){
+			current.end = chunk_byte+1;
+		}else{
+			throw new Error;
 		}
 	}
 
-	function emitChunk(){
-
+	function write_body_maybe(chunk, chunk_byte){
+		const current = body_chunks_maybe[body_chunks_maybe.length-1];
+		if(body_chunks_maybe.length===0 || current.chunk!==chunk){
+			body_chunks_maybe.push({chunk, start:chunk_byte, end:chunk_byte+1});
+		}else if(current.end === chunk_byte){
+			current.end = chunk_byte+1;
+		}else{
+			throw new Error;
+		}
 	}
+
+	function release(){
+		// Iterate through the bytes, merge adjacent bytes from the same chunk together
+		// Write through only the parts of chunks that were known
+		body_chunks_maybe.forEach(function(chunkData){
+			// Merge the maybe chunks into the definitely chunks
+			if(current.end === chunkData.start){
+				current.end = chunkData.end;
+			}else{
+				body_chunks.push(chunkData);
+			}
+		});
+		body_chunks_maybe = [];
+	}
+
+	if(fp) fp.close();
+	return new Promise(function(resolve, reject){ writeStream.once('close', resolve); writeStream.once('error', reject); });
 }
 
 async function handleApplicationByteranges(req){
