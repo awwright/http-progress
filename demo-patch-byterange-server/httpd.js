@@ -207,7 +207,7 @@ async function handlePatchMultipartByterange(req, filepath){
 	for await (const chunk of req) {
 		for(var chunk_byte=0; chunk_byte<chunk.length; chunk_byte++){
 			const c = chunk[chunk_byte];
-			console.log(s_names[state], c.toString(16), c<0x20 ? String.fromCharCode(0x2400+c) : String.fromCharCode(c), boundary_state, boundary_s[boundary_state]);
+			// console.log(s_names[state], c.toString(16), c<0x20 ? String.fromCharCode(0x2400+c) : String.fromCharCode(c), boundary_state, boundary_s[boundary_state]);
 			switch(state){
 				case s_preamble_text_or_dash_boundary:
 					if(c===0x0D) state = s_preamble_CRLF; // CR
@@ -356,17 +356,21 @@ async function handlePatchMultipartByterange(req, filepath){
 
 		// Move all chunks that are all definitely body to output
 		// Do it this way to try pass chunks (packets) that resemble the incoming chunks as much as possible
+		var lastStream;
 		while(body_chunks.length && (body_chunks[0].end===body_chunks[0].chunk.length || body_chunks_maybe.length===0)){
 			const chunk_data = body_chunks.shift();
-			writeStream.write(chunk_data.chunk.slice(chunk_data.start, chunk_data.end));
+			chunk_data.stream.write(chunk_data.chunk.slice(chunk_data.start, chunk_data.end));
+			if(lastStream && lastStream !== chunk_data.stream){
+				lastStream.close();
+			}
+			lastStream = chunk_data.stream;
 		}
-
 	}
 
 	function write_body(chunk, chunk_byte){
 		const current = body_chunks[body_chunks.length-1];
 		if(body_chunks.length===0 || current.chunk!==chunk || (current.chunk===chunk && current.end!==chunk_byte)){
-			body_chunks.push({chunk, start:chunk_byte, end:chunk_byte+1});
+			body_chunks.push({chunk, start:chunk_byte, end:chunk_byte+1, stream:writeStream});
 		}else if(current.end === chunk_byte){
 			current.end = chunk_byte+1;
 		}else{
@@ -377,7 +381,7 @@ async function handlePatchMultipartByterange(req, filepath){
 	function write_body_maybe(chunk, chunk_byte){
 		const current = body_chunks_maybe[body_chunks_maybe.length-1];
 		if(body_chunks_maybe.length===0 || current.chunk!==chunk){
-			body_chunks_maybe.push({chunk, start:chunk_byte, end:chunk_byte+1});
+			body_chunks_maybe.push({chunk, start:chunk_byte, end:chunk_byte+1, stream:writeStream});
 		}else if(current.end === chunk_byte){
 			current.end = chunk_byte+1;
 		}else{
@@ -400,7 +404,9 @@ async function handlePatchMultipartByterange(req, filepath){
 	}
 
 	if(fp) fp.close();
-	return new Promise(function(resolve, reject){ writeStream.once('close', resolve); writeStream.once('error', reject); });
+	if(writeStream) writeStream.close();
+	// await new Promise(function(resolve, reject){ writeStream.once('close', resolve); writeStream.once('error', reject); });
+	return;
 }
 
 async function handleApplicationByteranges(req){
