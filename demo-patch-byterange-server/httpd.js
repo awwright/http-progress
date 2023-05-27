@@ -173,8 +173,6 @@ async function handlePatchMessageByterange(req, filepath){
 
 async function handlePatchMultipartByterange(req, filepath){
 	var fields = "";
-	var body = Buffer.from([]);
-	var contentOffset, contentLength;
 	var si = 0;
 	var state = 0;
 	var boundary_state = 0;
@@ -410,9 +408,63 @@ async function handlePatchMultipartByterange(req, filepath){
 }
 
 async function handleApplicationByteranges(req){
-	throw new Error('TODO');
-	var fields, content, contentOffset, contentLength;
-	return [fields, content, contentOffset, contentLength];
+	var fields = "";
+	var state = 0;
+	var int_state = 0;
+	var int_value = 0;
+	var section_length = 0;
+	var section_state = 0;
+
+	var si = 0;
+	// *(*text CRLF) dash-boundary
+	const s_Message = si++;
+	const s_known_length_field_length = si++;
+	const s_known_length_field_name_length = si++;
+	const s_known_length_field_value_length = si++;
+	const s_known_length_field_line = si++;
+	const s_indeterminate_length_field_line = si++;
+	const s_indeterminate_length_field_name_length = si++;
+	const s_indeterminate_length_field_value_length = si++;
+	const s_void = si++;
+	const s_names = [ 's_preamble_text_or_dash_boundary', 's_preamble_text_or_CR', 's_preamble_CRLF', 's_0dashboundary_1', 's_0dashboundary_boundary', 's_0dashboundary_padding', 's_0dashboundary_CRLF', 's_message_field_start_or_CR', 's_message_field_or_CR', 's_message_field_CRLF', 's_message_fields_CRLF', 's_message_body', 's_message_body_or_delimiter_LF', 's_message_body_or_delimiter_dash', 's_message_body_or_delimiter_dashdash', 's_message_body_or_delimiter_boundary', 's_message_body_or_delimiter_end', 's_message_body_or_delimiter_enddash', 's_message_body_or_delimiter_CR', 's_message_body_or_delimiter_CRLF', 's_void'];
+	var boundary_s = '';
+	var boundary = [];
+	var body_chunks = [];
+	var body_chunks_maybe = [];
+	for await (const chunk of req) {
+		for(var chunk_byte=0; chunk_byte<chunk.length; chunk_byte++){
+			const c = chunk[chunk_byte];
+			// console.log(s_names[state], c.toString(16), c<0x20 ? String.fromCharCode(0x2400+c) : String.fromCharCode(c), boundary_state, boundary_s[boundary_state]);
+			if(typeof int_state==="number" && int_state){
+				int_val = (int_val << 8) + c;
+				int_state--;
+				continue;
+			}
+			switch(state){
+				case s_Message:
+					if(c===8){
+						state = s_known_length_field_length;
+					}else if(c===10){
+						state = s_indeterminate_length_field_line;
+						throw new Error('Indeterminate messages unsupported');
+					}else throw new Error('Expected Framing Indicator');
+					break;
+				case s_known_length_field_length:
+					if(c >= 0x80) throw new Error;
+					if(int_state===null){
+						int_state = c>>6;
+						int_value = c & 0x7F;
+					}
+					section_length = int_value;
+					int_state = null;
+					break;
+				case s_indeterminate_length_field_line:
+					throw new Error('Indeterminate messages unsupported');
+					break;
+			}
+		}
+	}
+
 }
 
 function applyPart(offset, length, stream){

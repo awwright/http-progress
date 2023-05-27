@@ -200,23 +200,37 @@ function concatBuffer(){
 }
 function taggedBuffer(){
 	// Generate a byte array tagged with its length
-	const arr = new Uint8Array(Array.from(arguments).reduce((a,b)=>a+b.length, 4));
-	arr[0] = 2;
-	arr[1] = (arr.length>>16)%0xFF;
-	arr[2] = (arr.length>>8)%0xFF;
-	arr[3] = (arr.length>>0)%0xFF;
-	for(var i=0, len=0; i<arguments.length; i++){
-		arr.set(arguments[i], len);
-		len += arguments[i].length;
+	const payloadLen = Array.from(arguments).reduce((a,b)=>a+b.length, 0);
+	const prefixLen =
+		(payloadLen < 64) ? 0 :
+		(payloadLen < 16384) ? 1 : 2;
+	const arr = new Uint8Array(1 + prefixLen + payloadLen);
+
+	// Encode the length
+	for(var i=0; i<=prefixLen; i++) arr[i] = (payloadLen>>(i*8)) & 0xFF;
+	arr[0] = arr[0] | (prefixLen << 6);
+
+	for(var i=0, len=prefixLen+1; i<arguments.length; i++){
+		if(typeof arguments[i] === 'string'){
+			const buf = new TextEncoder().encode(arguments[i]);
+			// No multibyte characters allowed
+			if(buf.length !== arguments[i].length) throw new Error;
+			arr.set(buf, len);
+			len += buf.length;
+		}else{
+			arr.set(arguments[i], len);
+			len += arguments[i].length;
+		}
 	}
 	return arr;
 }
 function generateApplicationByteranges(parts, targetLength){
+	debugger;
 	var out = [];
 	for(var i=0; i<parts.length; i++){
 		out.push(new Uint8Array([8])); // Framing Indicator
 		out.push(taggedBuffer(
-			taggedBuffer('Content-Range'), taggedBuffer(''),
+			taggedBuffer('Content-Range'), taggedBuffer('00000'),
 			taggedBuffer('Content-Length'), taggedBuffer(targetLength.toString()),
 		)); // Known-Length Field Section
 		out.push(taggedBuffer(parts[i].data)); // Known-Length Content
