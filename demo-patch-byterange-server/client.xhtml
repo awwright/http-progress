@@ -87,7 +87,7 @@ function computeRequests(){
 				+ requestList[i].method+' '+url+' HTTP/1.1\r\n'
 				+ 'Content-Type: '+requestList[i].headers['Content-Type']+'\r\n'
 				+ '\r\n'
-				+ Array.from(requestList[i].body).map(function(x){ return x.toString(16).padStart(2,'0'); }).join(' ').replace(/(.{47}) /g, function(_,a){ return a+'   '+a.split(' ').map(function(b){ const c = parseInt(b, 16); return c<0x20 ? String.fromCharCode(0x2400+c) :
+				+ Array.from(requestList[i].body).map(function(x){ return x.toString(16).padStart(2,'0'); }).join(' ').replace(/(.{2,47}) ?/g, function(_,a){ return a.padEnd(50, ' ')+a.split(' ').map(function(b){ const c = parseInt(b, 16); return c<0x20 ? String.fromCharCode(0x2400+c) :
 			c<0x7f ? String.fromCharCode(c) :
 			'\uFFFD'; }).join('')+'\n'; });
 		}else{
@@ -209,6 +209,7 @@ function taggedBuffer(){
 	// Encode the length
 	for(var i=0; i<=prefixLen; i++) arr[i] = (payloadLen>>(i*8)) & 0xFF;
 	arr[0] = arr[0] | (prefixLen << 6);
+	console.log(payloadLen.toString(16), prefixLen.toString(16), arr[0].toString(2));
 
 	for(var i=0, len=prefixLen+1; i<arguments.length; i++){
 		if(typeof arguments[i] === 'string'){
@@ -225,13 +226,13 @@ function taggedBuffer(){
 	return arr;
 }
 function generateApplicationByteranges(parts, targetLength){
-	debugger;
 	var out = [];
 	for(var i=0; i<parts.length; i++){
+		const part = parts[i];
 		out.push(new Uint8Array([8])); // Framing Indicator
 		out.push(taggedBuffer(
-			taggedBuffer('Content-Range'), taggedBuffer('00000'),
-			taggedBuffer('Content-Length'), taggedBuffer(targetLength.toString()),
+			taggedBuffer('Content-Range'), taggedBuffer('bytes '+part.start+'-'+part.end+'/'+targetLength),
+			taggedBuffer('Content-Length'), taggedBuffer(part.data.length+''),
 		)); // Known-Length Field Section
 		out.push(taggedBuffer(parts[i].data)); // Known-Length Content
 	}
@@ -249,10 +250,11 @@ function generateMultipartByteranges(parts, targetLength, separator){
 	const out = [];
 	out.push(new TextEncoder().encode('--'+separator));
 	for(var i=0; i<parts.length; i++){
+		const part = parts[i];
 		out.push(new TextEncoder().encode(
 			'\r\n'
-			+ 'Content-Range: bytes '+parts[i].start+'-'+parts[i].end+'/'+targetLength+'\r\n'
-			+ 'Content-Length: '+parts[i].data.length+'\r\n'
+			+ 'Content-Range: bytes '+part.start+'-'+part.end+'/'+targetLength+'\r\n'
+			+ 'Content-Length: '+part.data.length+'\r\n'
 			+ '\r\n'
 		));
 		out.push(parts[i].data);
