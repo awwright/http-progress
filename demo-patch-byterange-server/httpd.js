@@ -86,13 +86,25 @@ async function handleGet(req, res, filepath, fp){
 	}
 
 	res.setHeader('Content-Type', 'application/octet-stream');
-	res.setHeader('Content-Length', stat.size+'');
 	if(req.headers['range']){
+		const rangeData = req.headers['range'].match(/^bytes=(\d+)-(\d+)$/);
+		console.log(rangeData, stat.size);
+		const rangeEnd = Math.min(parseInt(rangeData[2], 10), stat.size-1);
+		const rangeStart = parseInt(rangeData[1], 10);
+		if(rangeStart > rangeEnd){
+			res.statusCode = 416; // Range Not Satisfiable
+			res.setHeader('Content-Type', 'text/plain');
+			res.end('Range Not Satisfiable\r\n');
+			return;
+		}
 		// Parse range header
-
+		res.setHeader('Content-Range', 'bytes '+rangeStart+'-'+rangeEnd+'/'+stat.size);
+		res.setHeader('Content-Length', (1+rangeEnd-rangeStart)+'');
+		res.flushHeaders();
+		const read = fp.createReadStream({start:rangeStart, end:rangeEnd+1});
+		read.pipe(res);
 	}else{
 		res.flushHeaders();
-		// const read = fp.createReadStream({start:0, end:stat.size-1});
 		const read = fp.createReadStream({});
 		read.pipe(res);
 	}
@@ -322,7 +334,8 @@ async function handlePatchMultipartByterange(req, filepath){
 						if(boundary_state===boundary.length){
 							state = s_message_body_or_delimiter_end;
 							body_chunks_maybe = [];
-							writeStream.close();
+							writeStream.end();
+							await new Promise(function(resolve, reject){ writeStream.once('close', resolve); writeStream.once('error', reject); });
 							writeStream = null;
 							boundary_state = 0;
 						}else{
@@ -407,9 +420,11 @@ async function handlePatchMultipartByterange(req, filepath){
 	return;
 }
 
-async function handleApplicationByteranges(req){
-	var fields = "";
+async function handleApplicationByteranges(req, filepath){
 	var state = 0;
+	var fields = [];
+	var field_name = "";
+	var field_value = "";
 	var int_state = null;
 	var int_value = null;
 	var section_length = 0;
@@ -487,6 +502,7 @@ async function handleApplicationByteranges(req){
 					section_length--;
 					field_length--;
 					if(field_length === 0) state = s_known_length_field_value_length;
+					field_name += String.fromCharCode(c);
 					break;
 				case s_known_length_field_value_length:
 					field_length = parse_int(c);
@@ -498,8 +514,29 @@ async function handleApplicationByteranges(req){
 				case s_known_length_field_value_value:
 					section_length--;
 					field_length--;
-					if(section_length === 0) state = s_known_length_content_length;
-					else if(field_length === 0) state = s_known_length_field_name_length;
+					field_value += String.fromCharCode(c);
+					if(field_length === 0){
+						fields.push([field_name, field_value]);
+						field_name = "";
+						field_value = "";
+					}
+					if(section_length === 0){
+						state = s_known_length_content_length;
+
+						// Parse the headers
+						const contentRangePair = fields.find(f => f[0].toLowerCase()==='content-range');
+						if(contentRangePair === undefined) throw new Error('No Content-Range field found in patch');
+						const contentRange = contentRangePair[1].match(/^[\t ]*([!\x23-'\x2a\x2b\x2d\x2e0-9A-Z\x5e-z\x7c~]+) ([0-9]+)-([0-9]+)\/(([0-9]+)|\*)[\t ]*$/i);
+						const chunkStart = parseInt(contentRange[2], 10);
+
+						// reopen the file for writing, append if exists, create if not exists
+						if(fp) fp.close();
+						var fp = await fs.open(filepath, 'a');
+						if(writeStream) writeStream.close();
+						var writeStream = fp.createWriteStream({start: chunkStart});
+					}else if(field_length === 0){
+						state = s_known_length_field_name_length;
+					}
 					break;
 				case s_known_length_content_length:
 					section_length = parse_int(c);
@@ -509,6 +546,7 @@ async function handleApplicationByteranges(req){
 				case s_known_length_content_value:
 					section_length--;
 					if(section_length === 0) state = s_void;
+					write_body(chunk, chunk_byte);
 					break;
 				case s_indeterminate_length_field_line:
 					throw new Error('Indeterminate messages unsupported');
@@ -517,11 +555,26 @@ async function handleApplicationByteranges(req){
 					break;
 			}
 		}
+
+		var lastStream;
+		while(body_chunks.length && (body_chunks[0].end===body_chunks[0].chunk.length || body_chunks_maybe.length===0)){
+			const chunk_data = body_chunks.shift();
+			chunk_data.stream.write(chunk_data.chunk.slice(chunk_data.start, chunk_data.end));
+			if(lastStream && lastStream !== chunk_data.stream){
+				lastStream.close();
+			}
+			lastStream = chunk_data.stream;
+		}
 	}
 
+	function write_body(chunk, chunk_byte){
+		const current = body_chunks[body_chunks.length-1];
+		if(body_chunks.length===0 || current.chunk!==chunk || (current.chunk===chunk && current.end!==chunk_byte)){
+			body_chunks.push({chunk, start:chunk_byte, end:chunk_byte+1, stream:writeStream});
+		}else if(current.end === chunk_byte){
+			current.end = chunk_byte+1;
+		}else{
+			throw new Error;
+		}
+	}
 }
-
-function applyPart(offset, length, stream){
-
-}
-
