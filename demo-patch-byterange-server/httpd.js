@@ -438,16 +438,13 @@ async function handleApplicationByteranges(req, filepath){
 	const s_known_length_field_name_value = si++;
 	const s_known_length_field_value_length = si++;
 	const s_known_length_field_value_value = si++;
-	const s_known_length_field_line = si++;
 	const s_known_length_content_length = si++;
 	const s_known_length_content_value = si++;
 	const s_indeterminate_length_field_line = si++;
 	const s_indeterminate_length_field_name_length = si++;
 	const s_indeterminate_length_field_value_length = si++;
 	const s_void = si++;
-	const s_names = ['s_framing_indicator','s_known_length_field_length','s_known_length_field_name_length','s_known_length_field_name_value','s_known_length_field_value_length','s_known_length_field_value_value','s_known_length_field_line','s_known_length_content_length','s_known_length_content_value','s_indeterminate_length_field_line','s_indeterminate_length_field_name_length','s_indeterminate_length_field_value_length','s_void'];
-	var boundary_s = '';
-	var boundary = [];
+	const s_names = ['s_framing_indicator','s_known_length_field_length','s_known_length_field_name_length','s_known_length_field_name_value','s_known_length_field_value_length','s_known_length_field_value_value','s_known_length_content_length','s_known_length_content_value','s_indeterminate_length_field_line','s_indeterminate_length_field_name_length','s_indeterminate_length_field_value_length','s_void'];
 	var body_chunks = [];
 	var body_chunks_maybe = [];
 	function parse_int(c){
@@ -479,6 +476,9 @@ async function handleApplicationByteranges(req, filepath){
 			// console.log(s_names[state], c.toString(16), c<0x20 ? String.fromCharCode(0x2400+c) : String.fromCharCode(c), int_state);
 			switch(state){
 				case s_framing_indicator:
+					fields = [];
+					field_name = "";
+					field_value = "";
 					if(c===8){
 						state = s_known_length_field_length;
 					}else if(c===10){
@@ -545,7 +545,7 @@ async function handleApplicationByteranges(req, filepath){
 					break;
 				case s_known_length_content_value:
 					section_length--;
-					if(section_length === 0) state = s_void;
+					if(section_length === 0) state = s_framing_indicator;
 					write_body(chunk, chunk_byte);
 					break;
 				case s_indeterminate_length_field_line:
@@ -577,4 +577,7 @@ async function handleApplicationByteranges(req, filepath){
 			throw new Error;
 		}
 	}
+
+	if(fp) fp.close();
+	if(writeStream) writeStream.close();
 }
