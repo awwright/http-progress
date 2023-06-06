@@ -210,6 +210,10 @@ The "application/byteranges" has the same semantics as "multipart/byteranges" bu
 
 ### Syntax
 
+Parsing starts by looking for a "Known-Length Message" or an "Indeterminate-Length Message". One or the other is distinguished by the different Framing Indicator.
+
+The remainder of the message is parsed by reading fields, then the content, by a method depending on if the message is known-length or indeterminate-length. If there are additional parts, they begin immediately after the end of a Content.
+
 The "Known-Length Field Section", "Known-Length Content", "Indeterminate-Length Field Section", "Indeterminate-Length Content", "Indeterminate-Length Content Chunk", "Field Line" definitions are identical to their definition in message/bhttp. They are used in one or more Known-Length Message and/or Indeterminate-Length Message productions, concatenated together.
 
 ~~~
@@ -221,16 +225,12 @@ Known-Length Message {
   Framing Indicator (i) = 8,
   Known-Length Field Section (..),
   Known-Length Content (..),
-  Indeterminate-Length Field Section (..),
-  Padding (..),
 }
 
 Indeterminate-Length Message  {
   Framing Indicator (i) = 10,
   Indeterminate-Length Field Section (..),
   Indeterminate-Length Content (..),
-  Indeterminate-Length Field Section (..),
-  Padding (..),
 }
 
 Known-Length Field Section {
@@ -265,10 +265,6 @@ Field Line {
   Value (..),
 }
 ~~~
-
-[^2]
-
-[^2]: It may be advantageous to make the format a proper subset of bhttp, so that an out-of-the-box bhttp parser may be used; but additional fields would be required (e.g. status code), which would have to be ignored or made constant.
 
 
 ## Range units
@@ -358,7 +354,7 @@ The server responds with 200 (OK). Since this completely writes out the 600-byte
 
 # Preserving Incomplete Uploads with "Prefer: transaction" {#prefer-transaction}
 
-The stateless design of HTTP generally implies that a request is atomic (otherwise parties would need to keep track of the state of a request while it's in progress). A benefit of this design is that a client does not need to be concerned with the complexities of resolving only the first half of an upload being honored, if there's an error partway through.
+The stateless design of HTTP generally implies that a request is atomic (otherwise parties would need to keep track of the state of a request while it's in progress). A benefit of this design is that a client does not need to be concerned with the side-effects of only the first half of an upload being honored, if there's an error partway through.
 
 However, some clients may desire partial state changes, particularly when remaking the upload is more expensive than the complexity of recovering from an interruption. In these cases, clients will want an incomplete request to be preserved as much as possible, so they may re-synchronize the state and pick up from where the incomplete request was terminated.
 
@@ -373,15 +369,13 @@ The `transaction=atomic` preference indicates that the request SHOULD apply only
 
 The `transaction=persist` preference indicates that uploaded data SHOULD be continuously stored as soon as possible, so that if the upload is interrupted, it is possible to resume the upload from where it left off.
 
-This preference is generally applicable to any HTTP request (and not merely for PATCH or byte range patches). While this is often easier to implement on the server, is much more complicated to recover from, because many more infrequent error cases must be handled, and specifics will vary by server, media type, and resource-specific semantics.
-
-Servers SHOULD indicate when this preference was honored, using a "Preference-Applied" response header. For example:
+This preference is generally applicable to any HTTP request (and not merely for PATCH or byte range patches). Servers SHOULD indicate when this preference was honored, using a "Preference-Applied" response header. For example:
 
 ~~~
-Preference-Applied: transaction=atomic
 Preference-Applied: transaction=persist
 ~~~
 
+Servers may consider broadcasting this in a 103 Early Hints response, since once point the final response is written, this may no longer be useful to know.
 
 
 # Registrations
@@ -547,22 +541,10 @@ In general, servers SHOULD treat the complete-length hint the same as a PUT requ
 
 There is no standard way for a Content-Range header to indicate an unknown or indeterminate-length body starting at a certain offset; the design of partial content messages requires that the sender know the total length before transmission. However it seems it should be possible to generate an indeterminate-length partial content response (e.g. return a continuously growing audio file starting at a 4MB offset). Fixing this would require a new header, update to HTTP, or a revision of HTTP.
 
-Ideally, this would look something like:
-
-~~~abnf
-Content-Range =/ range-unit SP first-pos "-/" ( complete-length / "*" )
-~~~
-
-For example: "`Content-Range: bytes 200-/*`" would indicate overwriting or appending content, starting at a 200 byte offset.
-
-And "`Content-Range: bytes 200-/4000`" would indicate overwriting an unknown amount of content, but not past 4000 bytes, starting at a 200 byte offset.
-
-Note these are different than "`Content-Range: bytes 200/*`" which would indicate splicing in content at a 200 byte offset.
-
 
 ## Sparse Documents
 
-This pattern can enable multiple, parallel uploads to a document at the same time. For example, uploading a large log file from multiple devices. However, this document does not define any ways for clients to track the unwritten regions in sparse documents, and the existing conditional request headers are designed to cause conflicts. Parallel uploads may requires a byte-level locking scheme or conflict-free operators. This may be addressed in a later document.
+This pattern can enable multiple, parallel uploads to a document at the same time. For example, uploading a large log file from multiple devices. However, this document does not define any ways for clients to track the unwritten regions in sparse documents, and the existing conditional request headers are designed to cause conflicts. Parallel uploads may require a byte-level locking scheme or conflict-free operators. This may be addressed in a later document.
 
 
 ## Recovering from interrupted PUT
@@ -571,10 +553,11 @@ Servers do not necessarily save the results of an incomplete upload; since most 
 
 Byte range PATCH cannot by itself be used to recover from an interrupted PUT that updates an existing document. If the server operation is atomic, the entire operation will be lost. If the server saves the upload, it may not possible to know how much of the request was received by the server, and what was old content that already existed.
 
-One technique would be to use a 1xx interim response to indicate a location where the partial upload is being stored. If PUT request is interrupted, the client can make PATCH requests to this temporary, non-atomic location to complete the upload. When the last part is uploaded, the original interrupted PUT request will appear.
+One technique would be to use a 1xx interim response to indicate a location where the partial upload is being stored. If PUT request is interrupted, the client can make PATCH requests to this temporary, non-atomic location to complete the upload. When the last part is uploaded, the original interrupted PUT request will finish.
 
 
 ## Splicing and Binary Diff
 
 Operations more complicated than standard filesystem operations are out of scope for this media type. A feature of byte range patch is an upper limit on the complexity of applying the patch. In contrast, prepending, splicing, replace, or other complicated file operations could potentially require the entire file on disk be rewritten.
 
+Consider registering a media type for VCDIFF in this document, under the topic of "Media type registrations for byte-level patching".
