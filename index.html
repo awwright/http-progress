@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>awwright/http-progress master preview</title>
+    <meta name="viewport" content="initial-scale=1.0">
+    <style type="text/css">/*<![CDATA[*/
+      body { font-family: "Helvetica Neue","Open Sans", Helvetica, Calibri,sans-serif; }
+      h1, h2, td { font-family: "Helvetica Neue", "Roboto Condensed", "Open Sans", Helvetica, Calibri, sans-serif; }
+      h1 { font-size: 20px; } h2 { font-size: 16px; }
+      table { margin: 5px 10px; border-collapse: collapse; }
+      th, td { font-weight: normal; text-align: left; padding: 2px 5px; }
+      a:link { color: #000; } a:visited { color: #00a; }
+    /*]]>*/</style>
+  </head>
+  <body>
+    <h1>Editor's drafts for master branch of <a href="https://github.com/awwright/http-progress">awwright/http-progress</a></h1>
+    <p>View <a href="issues.html">saved issues</a>, or the latest GitHub <a href="https://github.com/awwright/http-progress/issues">issues</a> and <a href="https://github.com/awwright/http-progress/pulls">pull requests</a> in the <a href="https://github.com/awwright/http-progress">repo</a>.</p>
+    <table id="branch-master">
+      <tr>
+        <td><a href="./draft-wright-http-patch-byterange.html" class="html draft-wright-http-patch-byterange" title="Byte Range PATCH (HTML)">Byte Range PATCH</a></td>
+        <td><a href="./draft-wright-http-patch-byterange.txt" class="txt draft-wright-http-patch-byterange" title="Byte Range PATCH (Text)">plain text</a></td>
+        <td><a href="https://datatracker.ietf.org/doc/draft-wright-http-patch-byterange" class="dt draft-wright-http-patch-byterange" title="Datatracker for draft-wright-http-patch-byterange">datatracker</a></td>
+        <td><a href="https://author-tools.ietf.org/api/iddiff?doc_1=draft-wright-http-patch-byterange&amp;url_2=https://awwright.github.io/http-progress/draft-wright-http-patch-byterange.txt" class="diff draft-wright-http-patch-byterange">diff with last submission</a></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td><a href="./draft-wright-http-progress.html" class="html draft-wright-http-progress" title="Reporting Progress of Long-Running Operations in HTTP (HTML)">HTTP Progress</a></td>
+        <td><a href="./draft-wright-http-progress.txt" class="txt draft-wright-http-progress" title="Reporting Progress of Long-Running Operations in HTTP (Text)">plain text</a></td>
+        <td><a href="https://datatracker.ietf.org/doc/draft-wright-http-progress" class="dt draft-wright-http-progress" title="Datatracker for draft-wright-http-progress">datatracker</a></td>
+        <td><a href="https://author-tools.ietf.org/api/iddiff?doc_1=draft-wright-http-progress&amp;url_2=https://awwright.github.io/http-progress/draft-wright-http-progress.txt" class="diff draft-wright-http-progress">diff with last submission</a></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td><a href="./draft-wright-http-partial-upload.html" class="html draft-wright-http-partial-upload" title="Partial Uploads in HTTP (HTML)">Partial Uploads in HTTP</a></td>
+        <td><a href="./draft-wright-http-partial-upload.txt" class="txt draft-wright-http-partial-upload" title="Partial Uploads in HTTP (Text)">plain text</a></td>
+        <td><a href="https://datatracker.ietf.org/doc/draft-wright-http-partial-upload" class="dt draft-wright-http-partial-upload" title="Datatracker for draft-wright-http-partial-upload">datatracker</a></td>
+        <td><a href="https://author-tools.ietf.org/api/iddiff?doc_1=draft-wright-http-partial-upload&amp;url_2=https://awwright.github.io/http-progress/draft-wright-http-partial-upload.txt" class="diff draft-wright-http-partial-upload">diff with last submission</a></td>
+        <td></td>
+      </tr>
+      <tr>
+        <td><a href="./draft-wright-http-resume-request.html" class="html draft-wright-http-resume-request" title="Partial and Resumable Requests in HTTP (HTML)">Partial and Resumable Requests in HTTP</a></td>
+        <td><a href="./draft-wright-http-resume-request.txt" class="txt draft-wright-http-resume-request" title="Partial and Resumable Requests in HTTP (Text)">plain text</a></td>
+        <td><a href="https://datatracker.ietf.org/doc/draft-wright-http-resume-request" class="dt draft-wright-http-resume-request" title="Datatracker for draft-wright-http-resume-request">datatracker</a></td>
+        <td><a href="https://author-tools.ietf.org/api/iddiff?doc_1=draft-wright-http-resume-request&amp;url_2=https://awwright.github.io/http-progress/draft-wright-http-resume-request.txt" class="diff draft-wright-http-resume-request">diff with last submission</a></td>
+        <td></td>
+      </tr>
+    </table>
+    <h2>Preview for branch <a href="demo-patch-byterange-server">demo-patch-byterange-server</a></h2>
+    <script>
+window.onload = function() {
+  var referrer_branch = 'master';
+  // e.g., "https://github.com/user/repo/tree/master"
+  var chunks = document.referrer.split("/");
+  if (chunks[2] === 'github.com' && chunks[5] === 'tree') {
+    referrer_branch = chunks[6];
+  }
+  let branch = document.querySelector('#branch-' + referrer_branch);
+  let h = document.location.hash.substring(1);
+  if (h === 'show') {
+    document.location.hash = '#' + branch.id;
+  } else if (branch && h.startsWith('go')) {
+    let e = branch.querySelector(h.substring(2));
+    if (e && e.href) {
+      document.location = e.href;
+    }
+  }
+};
+    </script>
+  </body>
+</html>

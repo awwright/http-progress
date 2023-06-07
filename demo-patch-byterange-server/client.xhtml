@@ -1,0 +1,317 @@
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en" dir="ltr">
+	<head profile="http://www.w3.org/1999/xhtml/vocab">
+		<meta http-equiv="Content-Type" content="application/xhtml+xml;charset=utf-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1"/>
+		<title>Patch editor</title>
+		<style>/*<![CDATA[*/
+#editor,#editor * { margin:0; padding:0; vertical-align:top; font:1em/1em monospace; font-family: monospace ; }
+#editor { height:1.5em;resize:none;overflow:hidden;font-size:120%; }
+#t { padding:0 2px; }
+#w { position:absolute;opacity:.001; }
+#rowno { max-width: 8ch; white-space: pre; }
+#hex { max-width: 49ch; }
+#ascii { width: 22ch; white-space: pre; }
+#requests > li { font: 1em/1em courier; }
+		/*]]>*/</style>
+		<script type="application/ecmascript">//<![CDATA[
+"use strict";
+document.addEventListener("DOMContentLoaded", onload);
+var rowno, ascii, hex, ow, start = new Uint8Array;
+function onload(){
+	ow = document.getElementById('ow');
+	rowno = document.getElementById('rowno');
+	ascii = document.getElementById('ascii');
+	hex = document.getElementById('hex');
+	hex.oninput = runOninput;
+	document.getElementById('targetUri').onchange = runOninput;
+	document.getElementById('reload').onclick = runReload;
+	document.getElementById('forget').onclick = resetOriginal;
+	document.getElementById('format').onchange = computeRequests;
+	document.getElementById('preview-format').onchange = computeRequests;
+	document.getElementById('submit').onclick = runSubmit;
+	runReload();
+}
+async function runReload(){
+	const url = document.getElementById('targetUri').value;
+	const req = await fetch(url);
+	const bytes = new Uint8Array(await req.arrayBuffer());
+	const hexVal = Array.from(bytes).map(function(x){ return x.toString(16).padStart(2,'0'); }).join(' ');
+	hex.value = hexVal;
+	resetOriginal();
+}
+function resetOriginal(){
+	const matches = hex.value.match(/...?/g) || [];
+	start = new Uint8Array(matches.map(function(a){ return parseInt(a.substring(0,2), 16); }));
+	runOninput();
+}
+function runOninput(e){
+	// Figure out how many formatted characters come before the cursor
+	var b = hex.value.substring(0,hex.selectionStart).replace(/[^0-9A-F]/ig,"").replace(/(..)/g,"$1 ").length;
+	// Overwrite the next character in most cases
+	if(ow.checked && e && e.inputType==="insertText" && e.data.length===1){
+		hex.value = hex.value.substring(0, hex.selectionStart) + hex.value.substring(hex.selectionStart+(hex.value[b-1]===' '?2:1));
+	}
+	// Reformat what was just changed
+	hex.value = hex.value.replace(/[^0-9A-F]/ig,"").replace(/(..)/g,"$1 ").replace(/ $/,"").toUpperCase();
+	hex.style.height = 1.5+Math.floor(hex.value.length/48)+"em";
+	// Rerender the ASCII view
+	for(var h="",i=0; i<=hex.value.length/48; i++){
+		h += (1E5+(16*i).toString(16)).slice(-6)+"\n";
+	}
+	rowno.textContent = h;
+	for(h="",i=0; i<hex.value.length; i+=3){
+		const c = parseInt(hex.value.substring(i,i+2),16);
+		h +=
+			c<0x20 ? String.fromCharCode(0x2400+c) :
+			c<0x7f ? String.fromCharCode(c) :
+			'\uFFFD';
+	}
+	ascii.textContent = h.replace(/(.{16})/g, "$1\n");
+	// Set the cursor to the correct position
+	if(hex.value[b-1] === " ") hex.setSelectionRange(b-1, b-1);
+	else hex.setSelectionRange(b, b);
+	computeRequests();
+}
+function computeRequests(){
+	const requests = document.getElementById('requests');
+	const requestList = generateRequestObjects();
+	if(requestList.length === 0){
+		requests.innerHTML = '<li>No changes</li>';
+		return;
+	}
+
+	const url = document.getElementById('targetUri').value;
+	const previewFormat = document.getElementById('preview-format').selectedIndex;
+	requests.innerHTML = '';
+	for(var i=0; i<requestList.length; i++){
+		// Create one li for each HTTP request that must be fired off
+		const e_li = document.createElement('li');
+		e_li.innerHTML = '<pre></pre>';
+		if(previewFormat === 0){
+			e_li.firstChild.textContent = ''
+				+ requestList[i].method+' '+url+' HTTP/1.1\r\n'
+				+ 'Content-Type: '+requestList[i].headers['Content-Type']+'\r\n'
+				+ '\r\n'
+				+ Array.from(requestList[i].body).map(function(x){ return x.toString(16).padStart(2,'0'); }).join(' ').replace(/(.{2,47}) ?/g, function(_,a){ return a.padEnd(50, ' ')+a.split(' ').map(function(b){ const c = parseInt(b, 16); return c<0x20 ? String.fromCharCode(0x2400+c) :
+			c<0x7f ? String.fromCharCode(c) :
+			'\uFFFD'; }).join('')+'\n'; });
+		}else{
+			e_li.firstChild.textContent = ''
+				+ requestList[i].method+' '+url+' HTTP/1.1\r\n'
+				+ 'Content-Type: '+requestList[i].headers['Content-Type']+'\r\n'
+				+ '\r\n'
+				+ new TextDecoder().decode(requestList[i].body);
+		}
+		requests.appendChild(e_li);
+	}
+}
+function generateRequestObjects(){
+	const matches = hex.value.match(/...?/g) || [];
+	const modified = new Uint8Array(matches.map(function(a){ return parseInt(a.substring(0,2), 16); }));
+	const selectFormat = document.getElementById('format').selectedIndex;
+	const separator = 'BV4I7CIzc34';
+	if(selectFormat >= 2){
+		var parts = generateParts(start, modified);
+		if(!parts.length){
+			return [];
+		}
+	}
+	switch(selectFormat){
+		case 0: return [{
+			method: "PUT",
+			credentials: "omit",
+			headers: {
+				"Content-Type": "application/octet-stream",
+			},
+			redirect: "follow",
+			body: modified,
+		}];
+		case 1: return Array.from({length: Math.ceil(modified.length/64)}).map(function(_, i){
+			const part = {
+				data: modified.slice(i*64, i*64+64),
+				start: i*64,
+				end: Math.min(i*64 + 64, modified.length)-1,
+			};
+			return {
+				method: "PATCH",
+				credentials: "omit",
+				headers: {
+					"Content-Type": "message/byterange",
+				},
+				redirect: "follow",
+				body: generateMessageByterange(part, modified.length),
+			};
+		});
+		case 2: return [{
+			method: "PATCH",
+			credentials: "omit",
+			headers: {
+				"Content-Type": "application/byteranges",
+			},
+			redirect: "follow",
+			body: generateApplicationByteranges(parts, modified.length),
+		}];
+		case 3: return parts.map(part => ({
+			method: "PATCH",
+			credentials: "omit",
+			headers: {
+				"Content-Type": "message/byterange",
+			},
+			redirect: "follow",
+			body: generateMessageByterange(part, modified.length),
+		}));
+		case 4: return [{
+			method: "PATCH",
+			credentials: "omit",
+			headers: {
+				"Content-Type": "multipart/byteranges",
+			},
+			redirect: "follow",
+			body: generateMultipartByteranges(parts, modified.length, separator),
+		}];
+	}
+}
+function generateParts(start, modified){
+	var currentPart, parts=[];
+	for(var i=0; i<modified.length; i++){
+		if(modified[i] !== start[i]){
+			if(currentPart){
+				currentPart.data[i-currentPart.start] = modified[i];
+				currentPart.end = i;
+			}else if(parts.length && parts[parts.length-1].end+10 > i){
+				// If the last part ended within 10 bytes, just merge with that part
+				currentPart = parts[parts.length-1];
+				for(var j=currentPart.end+1; j<=i; j++) currentPart.data[j-currentPart.start] = modified[j];
+				currentPart.end = i;
+			}else{
+				currentPart = {start:i, end:i, data:[modified[i]]};
+				parts.push(currentPart);
+			}
+		}else{
+			currentPart = null;
+		}
+	}
+	return parts;
+}
+function concatBuffer(){
+	// Concatenate multiple byte arrays together
+	// Generate a byte array tagged with its length
+	const arr = new Uint8Array(Array.from(arguments).reduce((a,b)=>a+b.length, 0));
+	for(var i=0, len=0; i<arguments.length; i++){
+		arr.set(arguments[i], len);
+		len += arguments[i].length;
+	}
+	return arr;
+}
+function taggedBuffer(){
+	// Generate a byte array tagged with its length
+	const payloadLen = Array.from(arguments).reduce((a,b)=>a+b.length, 0);
+	const prefixLen =
+		(payloadLen < 64) ? 0 :
+		(payloadLen < 16384) ? 1 : 2;
+	const arr = new Uint8Array(1 + prefixLen + payloadLen);
+
+	// Encode the length
+	for(var i=0; i<=prefixLen; i++) arr[i] = (payloadLen>>(i*8)) & 0xFF;
+	arr[0] = arr[0] | (prefixLen << 6);
+	console.log(payloadLen.toString(16), prefixLen.toString(16), arr[0].toString(2));
+
+	for(var i=0, len=prefixLen+1; i<arguments.length; i++){
+		if(typeof arguments[i] === 'string'){
+			const buf = new TextEncoder().encode(arguments[i]);
+			// No multibyte characters allowed
+			if(buf.length !== arguments[i].length) throw new Error;
+			arr.set(buf, len);
+			len += buf.length;
+		}else{
+			arr.set(arguments[i], len);
+			len += arguments[i].length;
+		}
+	}
+	return arr;
+}
+function generateApplicationByteranges(parts, targetLength){
+	var out = [];
+	for(var i=0; i<parts.length; i++){
+		const part = parts[i];
+		out.push(new Uint8Array([8])); // Framing Indicator
+		out.push(taggedBuffer(
+			taggedBuffer('Content-Range'), taggedBuffer('bytes '+part.start+'-'+part.end+'/'+targetLength),
+			taggedBuffer('Content-Length'), taggedBuffer(part.data.length+''),
+		)); // Known-Length Field Section
+		out.push(taggedBuffer(parts[i].data)); // Known-Length Content
+	}
+	return concatBuffer.apply(null, out);
+}
+function generateMessageByterange(part, targetLength){
+	const headers = new TextEncoder().encode(
+		'Content-Range: bytes '+part.start+'-'+part.end+'/'+targetLength+'\r\n'
+		+ 'Content-Length: '+part.data.length+'\r\n'
+		+ '\r\n'
+	);
+	return concatBuffer(headers, part.data);
+}
+function generateMultipartByteranges(parts, targetLength, separator){
+	const out = [];
+	out.push(new TextEncoder().encode('--'+separator));
+	for(var i=0; i<parts.length; i++){
+		const part = parts[i];
+		out.push(new TextEncoder().encode(
+			'\r\n'
+			+ 'Content-Range: bytes '+part.start+'-'+part.end+'/'+targetLength+'\r\n'
+			+ 'Content-Length: '+part.data.length+'\r\n'
+			+ '\r\n'
+		));
+		out.push(parts[i].data);
+		out.push(new TextEncoder().encode('\r\n--'+separator));
+	}
+	out.push(new TextEncoder().encode('--\r\n'));
+	return concatBuffer.apply(null, out);
+}
+async function runSubmit(){
+	const url = document.getElementById('targetUri').value;
+	const matches = hex.value.match(/...?/g) || [];
+	const modified = new Uint8Array(matches.map(function(a){ return parseInt(a.substring(0,2), 16); }));
+	const format = document.getElementById('format').selectedIndex;
+	const parts = generateRequestObjects();
+	for(var i=0; i<parts.length; i++){
+		console.log(await fetch(url, parts[i]));
+	}
+}
+		//]]></script>
+	</head>
+	<body class="pagewidth">
+		<main>
+			<h1>Patch editor</h1>
+			<p>This form lets you load a file and make changes to it, then send only those changes as a PATCH request. To begin, enter the URI of a document to load, then press the "Load" button. The document will load in the text editor. Or, paste in a document, then press "Forget changes" to set the data that edits will be compared to.</p>
+			<p>Make changes to in the textarea, and use the "Format" drop-down to preview an HTTP request that will apply the changes you've made back to the server.</p>
+			<p>This repo has an HTTP server that will apply these PATCH requests: <code>node httpd.js</code></p>
+			<div><input id="targetUri" type="text" value="/foo.txt"/><button id="reload">⟳ Load</button></div>
+			<div><label><input type="checkbox" id="ow" checked="1"/>Overwrite</label> <button id="forget">↵ Forget edits</button></div>
+			<table id="editor"><tbody>
+				<tr><td>Offset</td><td>Hex</td><td>ASCII</td></tr>
+				<tr><th id="rowno">00000000</th><td><textarea id="hex" spellcheck="false" cols="47">40 41 42 43 44 45 46 47 48 49 4A 4B 4C 4D 4E 4F</textarea></td><td id="ascii"></td></tr>
+			</tbody></table>
+			<div>
+				<select id="format">
+					<optgroup label="whole document">
+						<option>PUT application/octet-stream</option>
+						<option>PATCH message/byterange (64 byte segments)</option>
+					</optgroup>
+					<optgroup label="differences">
+						<option>PATCH application/byteranges</option>
+						<option selected="1">PATCH message/byterange</option>
+						<option>PATCH multipart/byteranges</option>
+					</optgroup>
+				</select>
+				<button id="submit">⇪ Submit</button>
+			</div>
+			<label>Request body display <select id="preview-format">
+				<option>hex+ASCII</option>
+				<option selected="1">text (best effort)</option>
+			</select></label>
+			<ol id="requests">
+			</ol>
+		</main>
+	</body>
+</html>
