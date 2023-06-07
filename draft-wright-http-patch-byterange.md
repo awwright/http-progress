@@ -556,6 +556,21 @@ Byte range PATCH cannot by itself be used to recover from an interrupted PUT tha
 One technique would be to use a 1xx interim response to indicate a location where the partial upload is being stored. If PUT request is interrupted, the client can make PATCH requests to this temporary, non-atomic location to complete the upload. When the last part is uploaded, the original interrupted PUT request will finish.
 
 
+## Truncation
+
+One currently unspecified operation that could be useful is the ability to resize the document without specifying any content for it. Especially truncating the document to zero bytes, or some other length. The unsatisfied-range form could potentially be used this:
+
+~~~ example
+PATCH /logs.txt HTTP/1.1
+Content-Type: message/byterange
+Content-Length: 28
+If-Match: "foo"
+
+Content-Range: bytes */0
+
+~~~
+
+
 ## Splicing and Binary Diff
 
 Operations more complicated than standard filesystem operations are out of scope for this media type. A feature of byte range patch is an upper limit on the complexity of applying the patch. In contrast, prepending, splicing, replace, or other complicated file operations could potentially require the entire file on disk be rewritten.
