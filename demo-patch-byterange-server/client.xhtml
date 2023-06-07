@@ -10,7 +10,7 @@
 #w { position:absolute;opacity:.001; }
 #rowno { max-width: 8ch; white-space: pre; }
 #hex { max-width: 49ch; }
-#ascii { max-width: 22ch; white-space: pre; }
+#ascii { width: 22ch; white-space: pre; }
 #requests > li { font: 1em/1em courier; }
 		/*]]>*/</style>
 		<script type="application/ecmascript">//<![CDATA[
@@ -289,7 +289,7 @@ async function runSubmit(){
 			<div><input id="targetUri" type="text" value="/foo.txt"/><button id="reload">⟳ Load</button></div>
 			<div><label><input type="checkbox" id="ow" checked="1"/>Overwrite</label> <button id="forget">↵ Forget edits</button></div>
 			<table id="editor"><tbody>
-				<tr><td>Offset</td><td>Hex</td><th>ASCII</th></tr>
+				<tr><td>Offset</td><td>Hex</td><td>ASCII</td></tr>
 				<tr><th id="rowno">00000000</th><td><textarea id="hex" spellcheck="false" cols="47">40 41 42 43 44 45 46 47 48 49 4A 4B 4C 4D 4E 4F</textarea></td><td id="ascii"></td></tr>
 			</tbody></table>
 			<div>
