@@ -46,7 +46,7 @@ appear in all capitals, as shown here.
 
 This document uses ABNF as defined in {{!RFC5234}} and imports grammar rules from {{!RFC7230}}.
 
-For brevity, example HTTP requests or responses may add newlines or whitespace,
+For brevity, example HTTP messages may add folding whitespace,
 or omit some headers necessary for message transfer.
 
 

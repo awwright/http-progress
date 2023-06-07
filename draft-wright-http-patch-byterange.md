@@ -55,7 +55,7 @@ appear in all capitals, as shown here.
 
 This document uses ABNF as defined in {{!RFC5234}} and imports grammar rules from {{!RFC9112}}.
 
-For brevity, example HTTP requests or responses may add newlines or whitespace,
+For brevity, example HTTP messages may add newlines or whitespace,
 or omit some headers necessary for message transfer.
 
 The term "byte" is used in the {{!RFC9110}} sense to mean "octet." Ranges are zero-indexed and inclusive. For example, "bytes 0-0" means the first byte of the document, and "bytes 1-2" is a range with two bytes, starting one byte into the document. Ranges of zero bytes are described by an address offset rather than a range. For example, "at byte 5" would separate the byte ranges 0-4 and 5-9.
@@ -78,16 +78,16 @@ The simplest form to represent a byte range patch is the "message/byterange" med
 ~~~http
 Content-Range: bytes 2-5/12
 
-cdef
+wxyz
 ~~~
 
-This patch represents an instruction to write the four bytes "cdef" at an offset of 2 bytes. A document listing the digits 0-9 in a row, would look like this after applying the patch:
+This patch represents an instruction to write the four bytes "wxyz" at an offset of 2 bytes. A document listing the digits 0-9 in a row, would look like this after applying the patch:
 
 ~~~~
-01cdef6789␍␊
+01wxyz6789␍␊
 ~~~~
 
-Although this example is a text document with a line terminator, patches are only carried as binary data, and can potentially carry or overwrite parts of multi-byte characters.
+Although this example is an ASCII document, patches are carried as binary data, and can carry, or partially overwrite, multi-byte characters.
 
 
 ## The Content-Range field

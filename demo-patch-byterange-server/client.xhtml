@@ -8,8 +8,9 @@
 #editor { height:1.5em;resize:none;overflow:hidden;font-size:120%; }
 #t { padding:0 2px; }
 #w { position:absolute;opacity:.001; }
-#rowno { max-width: 8ex; white-space: pre; }
-#ascii { max-width: 22ex; white-space: pre; }
+#rowno { max-width: 8ch; white-space: pre; }
+#hex { max-width: 49ch; }
+#ascii { max-width: 22ch; white-space: pre; }
 #requests > li { font: 1em/1em courier; }
 		/*]]>*/</style>
 		<script type="application/ecmascript">//<![CDATA[
@@ -24,6 +25,7 @@ function onload(){
 	hex.oninput = runOninput;
 	document.getElementById('targetUri').onchange = runOninput;
 	document.getElementById('reload').onclick = runReload;
+	document.getElementById('forget').onclick = resetOriginal;
 	document.getElementById('format').onchange = computeRequests;
 	document.getElementById('preview-format').onchange = computeRequests;
 	document.getElementById('submit').onclick = runSubmit;
@@ -35,6 +37,9 @@ async function runReload(){
 	const bytes = new Uint8Array(await req.arrayBuffer());
 	const hexVal = Array.from(bytes).map(function(x){ return x.toString(16).padStart(2,'0'); }).join(' ');
 	hex.value = hexVal;
+	resetOriginal();
+}
+function resetOriginal(){
 	const matches = hex.value.match(/...?/g) || [];
 	start = new Uint8Array(matches.map(function(a){ return parseInt(a.substring(0,2), 16); }));
 	runOninput();
@@ -278,12 +283,13 @@ async function runSubmit(){
 	<body class="pagewidth">
 		<main>
 			<h1>Patch editor</h1>
-			<p>This form lets you load a file and make changes to it, then send just those changes as a PATCH request. To begin, enter the URI of a document to load, then press the "Load" button. The document will load in the text editor. Make changes to it, and use the "Format" drop-down to preview an HTTP request that will apply the changes you've made back to the server.</p>
+			<p>This form lets you load a file and make changes to it, then send only those changes as a PATCH request. To begin, enter the URI of a document to load, then press the "Load" button. The document will load in the text editor. Or, paste in a document, then press "Forget changes" to set the data that edits will be compared to.</p>
+			<p>Make changes to in the textarea, and use the "Format" drop-down to preview an HTTP request that will apply the changes you've made back to the server.</p>
 			<p>This repo has an HTTP server that will apply these PATCH requests: <code>node httpd.js</code></p>
 			<div><input id="targetUri" type="text" value="/foo.txt"/><button id="reload">⟳ Load</button></div>
-			<div><label><input type="checkbox" id="ow" checked="1"/>Overwrite</label></div>
+			<div><label><input type="checkbox" id="ow" checked="1"/>Overwrite</label> <button id="forget">↵ Forget edits</button></div>
 			<table id="editor"><tbody>
-				<tr><td></td><th></th></tr>
+				<tr><td>Offset</td><td>Hex</td><th>ASCII</th></tr>
 				<tr><th id="rowno">00000000</th><td><textarea id="hex" spellcheck="false" cols="47">40 41 42 43 44 45 46 47 48 49 4A 4B 4C 4D 4E 4F</textarea></td><td id="ascii"></td></tr>
 			</tbody></table>
 			<div>
@@ -294,15 +300,15 @@ async function runSubmit(){
 					</optgroup>
 					<optgroup label="differences">
 						<option>PATCH application/byteranges</option>
-						<option>PATCH message/byterange</option>
+						<option selected="1">PATCH message/byterange</option>
 						<option>PATCH multipart/byteranges</option>
 					</optgroup>
 				</select>
 				<button id="submit">⇪ Submit</button>
 			</div>
 			<label>Request body display <select id="preview-format">
-				<option>hex</option>
-				<option>text (best effort)</option>
+				<option>hex+ASCII</option>
+				<option selected="1">text (best effort)</option>
 			</select></label>
 			<ol id="requests">
 			</ol>
