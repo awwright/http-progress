@@ -104,16 +104,16 @@ As a special case, a Content-Range where the "last-pos" is omitted indicates tha
 Content-Range =/ range-unit SP first-pos "-/" ( complete-length / "*" )
 ~~~
 
-The unsatisfied-range form (e.g. `bytes */1000`) is not meaningful, it MUST be treated as a syntax error. [^1]
+The unsatisfied-range form (e.g. `bytes */1000`) represents an instruction to set the size of the target document. A header of the form `bytes */0` truncates the target document to zero bytes.
 
-[^1]: This form could potentially be used to specify the intended size of the target resource, without providing any data at all.
+Servers do not have to support every type of value; servers MAY reject unsupported forms with a 400 error. For example, they may reject an unsatisfied-range part that grows the size of the target, or they may even decline to support truncation at all.
 
 
 ## The Content-Length field
 
-A "Content-Length" part field, if provided, describes the length of the part body. (To describe the size of the entire target resource, see the Content-Range field.)
+A "Content-Length" part field, if provided, describes the length of the part body. (To describe the size of the entire target resource, use the complete-length component of the Content-Range field.)
 
-If provided, it MUST exactly match the length of the range specified in the Content-Range field, and servers MUST error when the Content-Length mismatches the length of the range.
+If provided, it MUST exactly match the length of the range specified in the Content-Range field. Servers MUST error when the Content-Length mismatches the length of the range.
 
 
 ## The Content-Type field
@@ -131,7 +131,7 @@ Use of such fields SHOULD be limited to cases where the meaning in the HTTP requ
 
 ## Applying a patch
 
-Servers SHOULD NOT accept requests that write beyond, and not adjacent to, the end of the resource. This would create a sparse file, where some bytes are undefined. For example, writing at byte 601 of a resource where bytes 0-599 are defined; this would leave byte 600 undefined. Servers that accept sparse writes MUST NOT disclose existing content, and SHOULD fill in undefined regions with zeros.
+Servers SHOULD NOT accept requests that write beyond, and not adjacent to, the end of the resource. This would create a sparse file, where some bytes are undefined. For example, writing bytes 200-299 of a resource where bytes 0-99 are defined; this would leave bytes 100-199 undefined. Servers that accept sparse writes MUST NOT disclose uninitialized content, and SHOULD fill in undefined regions with zeros.
 
 The expected length of the write can be computed from the part fields. If the actual length of the part body mismatches the expected length, this MUST be treated the same as a network interruption at the shorter length, but anticipating the longer length. Recovering from this interruption may involve rolling back the entire request, or saving as many bytes as possible. The client can then recover the same way it would recover from a network error.
 
@@ -160,9 +160,9 @@ Content-Type: text/plain
 --THIS_STRING_SEPARATES--
 ~~~
 
-The syntax for multipart messages is defined in {{RFC2046, Section 5.1.1}}. While the body cannot contain the boundary, servers MAY use the Content-Length field to skip to the boundary (potentially ignoring a boundary in the body, which would be an error by the client).
+The syntax for multipart messages is defined in {{RFC2046, Section 5.1.1}}. While the body cannot contain the boundary, servers MAY use the Content-Length field to skip parsing for the boundary (potentially ignoring a boundary in the body, which would be an error by the client).
 
-The multipart/byteranges type may be used for operations where multiple regions must be updated at the same time; clients may have an expectation that if there's an interruption, all of the parts will be rolled back.
+The multipart/byteranges type may be used for operations where multiple regions must be updated at the same time; note that clients may have an expectation that if there's an interruption, all of the parts will be rolled back.
 
 
 ## The message/byterange media type {#message-byterange}
@@ -189,9 +189,9 @@ This represents a request to modify a 600-byte document, overwriting 200 bytes o
 
 ### Syntax
 
-The syntax re-uses concepts from the "multipart/byteranges" media type, except it omits the multipart separator, and so only allows a single range to be specified. It is also similar to the "message/http" media type, except the first line (the status line or request line) is omitted; a message/byterange document can be fed into a message/http parser by first prepending a line like "PATCH / HTTP/1.1".
+The syntax re-uses concepts from the "multipart/byteranges" media type, except it omits the multipart separator, and so only allows a single range to be specified. It is also similar to the "message/http" media type, except the first line (the status line or request line) is omitted; a message/byterange document can be fed into a message/http parser by first prepending a line like "PUT / HTTP/1.1".
 
-It follows the syntax of HTTP message headers and body. It MUST include the Content-Range header field. If the message length is known by the sender, it SHOULD contain the Content-Length header field. Unknown or nonapplicable header fields MUST be ignored.
+It follows the syntax of HTTP message headers and body. It MUST include the Content-Range field. If the part body length is known by the sender, it SHOULD contain the Content-Length field. Unknown or nonapplicable fields MUST be ignored.
 
 The field-line and message-body productions are specified in [RFC9112].
 
@@ -210,9 +210,9 @@ The "application/byteranges" has the same semantics as "multipart/byteranges" bu
 
 ### Syntax
 
-Parsing starts by looking for a "Known-Length Message" or an "Indeterminate-Length Message". One or the other is distinguished by the different Framing Indicator.
+Parsing starts by looking for a "Known-Length Message" or an "Indeterminate-Length Message". One or the other is distinguished by reading the Framing Indicator.
 
-The remainder of the message is parsed by reading fields, then the content, by a method depending on if the message is known-length or indeterminate-length. If there are additional parts, they begin immediately after the end of a Content.
+The remainder of the message is parsed by reading part fields, then the part content, depending on if the message is known-length or indeterminate-length. If there are additional parts, they begin immediately after the end of a Content.
 
 The "Known-Length Field Section", "Known-Length Content", "Indeterminate-Length Field Section", "Indeterminate-Length Content", "Indeterminate-Length Content Chunk", "Field Line" definitions are identical to their definition in message/bhttp. They are used in one or more Known-Length Message and/or Indeterminate-Length Message productions, concatenated together.
 
@@ -282,7 +282,7 @@ As an alternative to using PUT to create a new resource, the contents of a resou
 
 A user-agent may also use PATCH to recover from an interrupted PUT request, if it was expected to create a new resource. The server will store the data sent to it by the user agent, but will not finalize the upload until the final length of the document is known and received.
 
-1. The client makes a PUT or PATCH request to a URL, a portion of which is generated by the client, to be unpredictable to other clients. This first request creates the resource, and should include `If-None-Match: *` to verify the target does not exist. If a PUT request, the server reads the Content-Length header and stores the intended final length of the document. If a PATCH request, the "Content-Range" field in the "message/byterange" patch is read for the final length. The final length may also be undefined, and defined in a later request.
+1. The client makes a PUT or PATCH request to a URL, a portion of which is generated by the client, to be unpredictable to other clients. This first request creates the resource, and should include `If-None-Match: *` to verify the target does not exist. If a PUT request, the server reads the Content-Length field and stores the intended final length of the document. If a PATCH request, the "Content-Range" field in the "message/byterange" patch is read for the final length. The final length may also be undefined, and defined in a later request.
 
 2. If any request is interrupted, the client may make a HEAD request to determine how much, if any, of the previous response was stored, and resumes uploading from that point. The server will return 200 (OK), but this may only indicate the write has been saved; the server is not obligated to begin acting on the upload until it is complete.
 
@@ -522,11 +522,9 @@ If a server fills in unallocated space by initializing it, servers SHOULD protec
 
 ## Document Size Hints
 
-A byte range patch is, overall, designed to require server resources that's proportional to the patch size. One possible exception to this rule is the complete-length part of the Content-Range field, which hints at the final upload size. Generally, this does not require the server to (immediately) allocate this amount of data. However, some servers may choose to begin preallocating disk space right away, which could be a very expensive operation compared to the actual size of the request.
+A byte range patch is, overall, designed to require server resources that's proportional to the patch size. One exception to this rule is the complete-length part of the Content-Range field, which hints at the final upload size. Generally, this does not require the server to (immediately) allocate this amount of data. However, some servers may choose to begin preallocating disk space right away, which could be a very expensive operation compared to the actual size of the request.
 
-In general, servers SHOULD treat the complete-length hint the same as a PUT request of that size, and issue a 400 (Client Error). [^3]
-
-[^3]: 413 (Payload Too Large) might not be appropriate for this situation, as it would indicate the patch is too large and the client should break up the patches into smaller chunks, rather than the intended final upload size being too large.
+In general, servers SHOULD treat the complete-length hint the same as a PUT request of that size, and issue a 400 (Client Error) if it is too large. (413 (Payload Too Large) would not be appropriate for this situation, as it would indicate the patch is too large and the client should try multiple smaller requests, rather than indicating the final upload size is too large.)
 
 
 --- back
@@ -537,9 +535,21 @@ In general, servers SHOULD treat the complete-length hint the same as a PUT requ
 
 [^4]: This section to be removed before final publication.
 
+
 ## Indeterminate Length Uploads
 
-There is no standard way for a Content-Range header to indicate an unknown or indeterminate-length body starting at a certain offset; the design of partial content messages requires that the sender know the total length before transmission. However it seems it should be possible to generate an indeterminate-length partial content response (e.g. return a continuously growing audio file starting at a 4MB offset). Fixing this would require a new header, update to HTTP, or a revision of HTTP.
+There is no standard way for a Content-Range field to indicate an unknown or indeterminate-length body starting at a certain offset; the design of partial content messages requires that the sender know the total length before transmission. However it seems it should be possible to generate an indeterminate-length partial content response (e.g. return a continuously growing audio file starting at a 4MB offset). Fixing this would require a new field, update to HTTP, or a revision of HTTP.
+
+Support in responses could be achieved with a header (or Preference) stating that the client supports indeterminate length Partial Content responses.
+
+See also https://www.ietf.org/rfc/rfc8673.html which uses a very large value for the complete-length as a substitute for an indeterminate length range response.
+
+
+## Compatibility with 206 (Partial Content) Responses
+
+The binary format {{message-binary}} is designed to be compatible as a binary version of multipart 206 (Partial Content) response. Servers could detect client support by use of a header (perhaps by listing the media type in an "Accept-Multipart-Range" header), and clients would detect the multipart response by observing the 206 status code, but lack of any Content-Range header in the response.
+
+The binary format itself is designed to maximize compatibility with message/bhttp, with the 4th (8-valued) bit of the Framing Indicator selected to mean "start-line omitted". However this also indicates other changes, including lack of trailers, and that another message may follow after.
 
 
 ## Sparse Documents
@@ -549,11 +559,11 @@ This pattern can enable multiple, parallel uploads to a document at the same tim
 
 ## Recovering from interrupted PUT
 
-Servers do not necessarily save the results of an incomplete upload; since most clients prefer atomic writes, many servers will discard an incomplete upload. A mechanism to indicate a preference for atomic vs. non-atomic writes may be defined at a later time.
+Servers do not necessarily save the results of an incomplete upload; since most clients prefer atomic writes, many servers will discard an incomplete upload. The "transaction" preference is intended as a way for a client to indicate it prefers partial writes that won't be lost in the event of an interruption.
 
-Byte range PATCH cannot by itself be used to recover from an interrupted PUT that updates an existing document. If the server operation is atomic, the entire operation will be lost. If the server saves the upload, it may not possible to know how much of the request was received by the server, and what was old content that already existed.
+While partial writes may work for uploading new resources, this cannot by itself be used to recover from an interrupted PUT that's overwriting an existing document, since it is difficult to know how much of the request was received by the server, versus what was old content that already existed.
 
-One technique would be to use a 1xx interim response to indicate a location where the partial upload is being stored. If PUT request is interrupted, the client can make PATCH requests to this temporary, non-atomic location to complete the upload. When the last part is uploaded, the original interrupted PUT request will finish.
+One technique would be to use a 1xx interim response to indicate a location where the partial upload is being stored. If PUT request is interrupted, the client can make PATCH requests to this temporary, non-atomic location to complete the upload. When the last part is uploaded, the original target resource will be in the same state as if it had finished without interruption.
 
 
 ## Truncation
