@@ -3,9 +3,9 @@
 
 
 HTTP                                                           A. Wright
-Internet-Draft                                               5 June 2023
+Internet-Draft                                              21 July 2023
 Intended status: Experimental                                           
-Expires: 7 December 2023
+Expires: 22 January 2024
 
 
          Reporting Progress of Long-Running Operations in HTTP
@@ -31,7 +31,7 @@ Status of This Memo
    time.  It is inappropriate to use Internet-Drafts as reference
    material or to cite them other than as "work in progress."
 
-   This Internet-Draft will expire on 7 December 2023.
+   This Internet-Draft will expire on 22 January 2024.
 
 Copyright Notice
 

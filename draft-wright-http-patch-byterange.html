@@ -7,25 +7,25 @@
 <title>Byte Range PATCH</title>
 <meta content="Austin Wright" name="author">
 <meta content="
-       This document specifies a media type for PATCH payloads that overwrites a specific byte range, to allow random access writes, or allow a resource to be uploaded in several segments. 
+       This document specifies a media type for PATCH to overwrite a specific byte range, allowing random access writes, or splitting an upload into multiple segments. 
     " name="description">
-<meta content="xml2rfc 3.17.2" name="generator">
+<meta content="xml2rfc 3.17.4" name="generator">
 <meta content="Internet-Draft" name="keyword">
 <meta content="HTTP" name="keyword">
 <meta content="draft-wright-http-patch-byterange-latest" name="ietf.draft">
 <!-- Generator version information:
-  xml2rfc 3.17.2
-    Python 3.10.11
-    appdirs 1.4.4
-    ConfigArgParse 1.5.3
-    google-i18n-address 3.0.0
+  xml2rfc 3.17.4
+    Python 3.10.12
+    ConfigArgParse 1.5.5
+    google-i18n-address 3.1.0
     intervaltree 3.1.0
     Jinja2 3.1.2
-    lxml 4.9.2
+    lxml 4.9.3
+    platformdirs 3.9.1
     pycountry 22.3.5
-    PyYAML 6.0
+    PyYAML 6.0.1
     requests 2.31.0
-    setuptools 67.8.0
+    setuptools 68.0.0
     six 1.16.0
     wcwidth 0.2.6
 -->
@@ -1048,11 +1048,11 @@ svg :is([fill="white"], [fill^="#fff"]) {
 <thead><tr>
 <td class="left">Internet-Draft</td>
 <td class="center">Byte Range PATCH</td>
-<td class="right">June 2023</td>
+<td class="right">July 2023</td>
 </tr></thead>
 <tfoot><tr>
 <td class="left">Wright</td>
-<td class="center">Expires 8 December 2023</td>
+<td class="center">Expires 22 January 2024</td>
 <td class="right">[Page]</td>
 </tr></tfoot>
 </table>
@@ -1065,12 +1065,12 @@ svg :is([fill="white"], [fill^="#fff"]) {
 <dd class="internet-draft">draft-wright-http-patch-byterange-latest</dd>
 <dt class="label-published">Published:</dt>
 <dd class="published">
-<time datetime="2023-06-06" class="published">6 June 2023</time>
+<time datetime="2023-07-21" class="published">21 July 2023</time>
     </dd>
 <dt class="label-intended-status">Intended Status:</dt>
 <dd class="intended-status">Experimental</dd>
 <dt class="label-expires">Expires:</dt>
-<dd class="expires"><time datetime="2023-12-08">8 December 2023</time></dd>
+<dd class="expires"><time datetime="2024-01-22">22 January 2024</time></dd>
 <dt class="label-authors">Author:</dt>
 <dd class="authors">
 <div class="author">
@@ -1082,7 +1082,7 @@ svg :is([fill="white"], [fill^="#fff"]) {
 <h1 id="title">Byte Range PATCH</h1>
 <section id="section-abstract">
       <h2 id="abstract"><a href="#abstract" class="selfRef">Abstract</a></h2>
-<p id="section-abstract-1">This document specifies a media type for PATCH payloads that overwrites a specific byte range, to allow random access writes, or allow a resource to be uploaded in several segments.<a href="#section-abstract-1" class="pilcrow">¶</a></p>
+<p id="section-abstract-1">This document specifies a media type for PATCH to overwrite a specific byte range, allowing random access writes, or splitting an upload into multiple segments.<a href="#section-abstract-1" class="pilcrow">¶</a></p>
 </section>
 <div id="status-of-memo">
 <section id="section-boilerplate.1">
@@ -1103,7 +1103,7 @@ svg :is([fill="white"], [fill^="#fff"]) {
         time. It is inappropriate to use Internet-Drafts as reference
         material or to cite them other than as "work in progress."<a href="#section-boilerplate.1-3" class="pilcrow">¶</a></p>
 <p id="section-boilerplate.1-4">
-        This Internet-Draft will expire on 8 December 2023.<a href="#section-boilerplate.1-4" class="pilcrow">¶</a></p>
+        This Internet-Draft will expire on 22 January 2024.<a href="#section-boilerplate.1-4" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="copyright">
@@ -1233,16 +1233,19 @@ svg :is([fill="white"], [fill^="#fff"]) {
                 <p id="section-toc.1-1.8.2.1.1"><a href="#appendix-A.1" class="auto internal xref">A.1</a>.  <a href="#name-indeterminate-length-upload" class="internal xref">Indeterminate Length Uploads</a></p>
 </li>
               <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.2">
-                <p id="section-toc.1-1.8.2.2.1"><a href="#appendix-A.2" class="auto internal xref">A.2</a>.  <a href="#name-sparse-documents" class="internal xref">Sparse Documents</a></p>
+                <p id="section-toc.1-1.8.2.2.1"><a href="#appendix-A.2" class="auto internal xref">A.2</a>.  <a href="#name-compatibility-with-206-part" class="internal xref">Compatibility with 206 (Partial Content) Responses</a></p>
 </li>
               <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.3">
-                <p id="section-toc.1-1.8.2.3.1"><a href="#appendix-A.3" class="auto internal xref">A.3</a>.  <a href="#name-recovering-from-interrupted" class="internal xref">Recovering from interrupted PUT</a></p>
+                <p id="section-toc.1-1.8.2.3.1"><a href="#appendix-A.3" class="auto internal xref">A.3</a>.  <a href="#name-sparse-documents" class="internal xref">Sparse Documents</a></p>
 </li>
               <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.4">
-                <p id="section-toc.1-1.8.2.4.1"><a href="#appendix-A.4" class="auto internal xref">A.4</a>.  <a href="#name-truncation" class="internal xref">Truncation</a></p>
+                <p id="section-toc.1-1.8.2.4.1"><a href="#appendix-A.4" class="auto internal xref">A.4</a>.  <a href="#name-recovering-from-interrupted" class="internal xref">Recovering from interrupted PUT</a></p>
 </li>
               <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.5">
-                <p id="section-toc.1-1.8.2.5.1"><a href="#appendix-A.5" class="auto internal xref">A.5</a>.  <a href="#name-splicing-and-binary-diff" class="internal xref">Splicing and Binary Diff</a></p>
+                <p id="section-toc.1-1.8.2.5.1"><a href="#appendix-A.5" class="auto internal xref">A.5</a>.  <a href="#name-truncation" class="internal xref">Truncation</a></p>
+</li>
+              <li class="compact toc ulBare ulEmpty" id="section-toc.1-1.8.2.6">
+                <p id="section-toc.1-1.8.2.6.1"><a href="#appendix-A.6" class="auto internal xref">A.6</a>.  <a href="#name-splicing-and-binary-diff" class="internal xref">Splicing and Binary Diff</a></p>
 </li>
             </ul>
 </li>
@@ -1258,7 +1261,7 @@ svg :is([fill="white"], [fill^="#fff"]) {
       <h2 id="name-introduction">
 <a href="#section-1" class="section-number selfRef">1. </a><a href="#name-introduction" class="section-name selfRef">Introduction</a>
       </h2>
-<p id="section-1-1">Filesystem interfaces typically provide some way to write at a specific position in a file. While HTTP supports reading byte range offsets using the Range header (<span><a href="https://rfc-editor.org/rfc/rfc9110#section-14" class="relref">Section 14</a> of [<a href="#RFC9110" class="cite xref">RFC9110</a>]</span>), this technique cannot generally be used in PUT, because the server may ignore the Content-Range header while executing the write, causing data corruption. However, by using a method and media type that the server must understand, writes to byte ranges with Content-Range semantics becomes possible even when server support is undetermined.<a href="#section-1-1" class="pilcrow">¶</a></p>
+<p id="section-1-1">Filesystem interfaces typically provide some way to write at a specific position in a file. While HTTP supports reading byte range offsets using the Range header (<span><a href="https://rfc-editor.org/rfc/rfc9110#section-14" class="relref">Section 14</a> of [<a href="#RFC9110" class="cite xref">RFC9110</a>]</span>), this technique cannot be used opportunistically in PUT, because the server may ignore the Content-Range header, causing data corruption. However, by using a method and media type that the server must understand, writes to byte ranges with Content-Range semantics becomes possible even when server support is undetermined.<a href="#section-1-1" class="pilcrow">¶</a></p>
 <p id="section-1-2">This media type is intended for use in a wide variety of applications where overwriting specific parts of the file is desired. This includes idempotently writing data to a stream, appending data to a file, overwriting specific byte ranges, or writing to multiple regions in a single operation (for example, appending audio to a recording in progress while updating metadata at the beginning of the file).<a href="#section-1-2" class="pilcrow">¶</a></p>
 <div id="notational-conventions">
 <section id="section-1.1">
@@ -1321,7 +1324,8 @@ wxyz
 Content-Range =/ range-unit SP first-pos "-/" ( complete-length / "*" )
 </pre><a href="#section-2.1-5" class="pilcrow">¶</a>
 </div>
-<p id="section-2.1-6">The unsatisfied-range form (e.g. <code>bytes */1000</code>) is not meaningful, it MUST be treated as a syntax error. <span class="cref" id="_1">This form could potentially be used to specify the intended size of the target resource, without providing any data at all.</span><a href="#section-2.1-6" class="pilcrow">¶</a></p>
+<p id="section-2.1-6">The unsatisfied-range form (e.g. <code>bytes */1000</code>) represents an instruction to set the size of the target document. A header of the form <code>bytes */0</code> truncates the target document to zero bytes.<a href="#section-2.1-6" class="pilcrow">¶</a></p>
+<p id="section-2.1-7">Servers do not have to support every type of value; servers MAY reject unsupported forms with a 400 error. For example, they may reject an unsatisfied-range part that grows the size of the target, or they may even decline to support truncation at all.<a href="#section-2.1-7" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="the-content-length-field">
@@ -1329,8 +1333,8 @@ Content-Range =/ range-unit SP first-pos "-/" ( complete-length / "*" )
         <h3 id="name-the-content-length-field">
 <a href="#section-2.2" class="section-number selfRef">2.2. </a><a href="#name-the-content-length-field" class="section-name selfRef">The Content-Length field</a>
         </h3>
-<p id="section-2.2-1">A "Content-Length" part field, if provided, describes the length of the part body. (To describe the size of the entire target resource, see the Content-Range field.)<a href="#section-2.2-1" class="pilcrow">¶</a></p>
-<p id="section-2.2-2">If provided, it MUST exactly match the length of the range specified in the Content-Range field, and servers MUST error when the Content-Length mismatches the length of the range.<a href="#section-2.2-2" class="pilcrow">¶</a></p>
+<p id="section-2.2-1">A "Content-Length" part field, if provided, describes the length of the part body. (To describe the size of the entire target resource, use the complete-length component of the Content-Range field.)<a href="#section-2.2-1" class="pilcrow">¶</a></p>
+<p id="section-2.2-2">If provided, it MUST exactly match the length of the range specified in the Content-Range field. Servers MUST error when the Content-Length mismatches the length of the range.<a href="#section-2.2-2" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="the-content-type-field">
@@ -1356,7 +1360,7 @@ Its use is typically limited to creating resources.<a href="#section-2.3-1" clas
         <h3 id="name-applying-a-patch">
 <a href="#section-2.5" class="section-number selfRef">2.5. </a><a href="#name-applying-a-patch" class="section-name selfRef">Applying a patch</a>
         </h3>
-<p id="section-2.5-1">Servers SHOULD NOT accept requests that write beyond, and not adjacent to, the end of the resource. This would create a sparse file, where some bytes are undefined. For example, writing at byte 601 of a resource where bytes 0-599 are defined; this would leave byte 600 undefined. Servers that accept sparse writes MUST NOT disclose existing content, and SHOULD fill in undefined regions with zeros.<a href="#section-2.5-1" class="pilcrow">¶</a></p>
+<p id="section-2.5-1">Servers SHOULD NOT accept requests that write beyond, and not adjacent to, the end of the resource. This would create a sparse file, where some bytes are undefined. For example, writing bytes 200-299 of a resource where bytes 0-99 are defined; this would leave bytes 100-199 undefined. Servers that accept sparse writes MUST NOT disclose uninitialized content, and SHOULD fill in undefined regions with zeros.<a href="#section-2.5-1" class="pilcrow">¶</a></p>
 <p id="section-2.5-2">The expected length of the write can be computed from the part fields. If the actual length of the part body mismatches the expected length, this MUST be treated the same as a network interruption at the shorter length, but anticipating the longer length. Recovering from this interruption may involve rolling back the entire request, or saving as many bytes as possible. The client can then recover the same way it would recover from a network error.<a href="#section-2.5-2" class="pilcrow">¶</a></p>
 </section>
 </div>
@@ -1387,8 +1391,8 @@ Content-Type: text/plain
 --THIS_STRING_SEPARATES--
 </pre><a href="#section-2.6-2" class="pilcrow">¶</a>
 </div>
-<p id="section-2.6-3">The syntax for multipart messages is defined in <span>[<a href="#RFC2046" class="cite xref">RFC2046</a>], <a href="https://rfc-editor.org/rfc/rfc2046#section-5.1.1" class="relref">Section 5.1.1</a></span>. While the body cannot contain the boundary, servers MAY use the Content-Length field to skip to the boundary (potentially ignoring a boundary in the body, which would be an error by the client).<a href="#section-2.6-3" class="pilcrow">¶</a></p>
-<p id="section-2.6-4">The multipart/byteranges type may be used for operations where multiple regions must be updated at the same time; clients may have an expectation that if there's an interruption, all of the parts will be rolled back.<a href="#section-2.6-4" class="pilcrow">¶</a></p>
+<p id="section-2.6-3">The syntax for multipart messages is defined in <span>[<a href="#RFC2046" class="cite xref">RFC2046</a>], <a href="https://rfc-editor.org/rfc/rfc2046#section-5.1.1" class="relref">Section 5.1.1</a></span>. While the body cannot contain the boundary, servers MAY use the Content-Length field to skip parsing for the boundary (potentially ignoring a boundary in the body, which would be an error by the client).<a href="#section-2.6-3" class="pilcrow">¶</a></p>
+<p id="section-2.6-4">The multipart/byteranges type may be used for operations where multiple regions must be updated at the same time; note that clients may have an expectation that if there's an interruption, all of the parts will be rolled back.<a href="#section-2.6-4" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="message-byterange">
@@ -1418,8 +1422,8 @@ Content-Type: text/plain
           <h4 id="name-syntax">
 <a href="#section-2.7.1" class="section-number selfRef">2.7.1. </a><a href="#name-syntax" class="section-name selfRef">Syntax</a>
           </h4>
-<p id="section-2.7.1-1">The syntax re-uses concepts from the "multipart/byteranges" media type, except it omits the multipart separator, and so only allows a single range to be specified. It is also similar to the "message/http" media type, except the first line (the status line or request line) is omitted; a message/byterange document can be fed into a message/http parser by first prepending a line like "PATCH / HTTP/1.1".<a href="#section-2.7.1-1" class="pilcrow">¶</a></p>
-<p id="section-2.7.1-2">It follows the syntax of HTTP message headers and body. It MUST include the Content-Range header field. If the message length is known by the sender, it SHOULD contain the Content-Length header field. Unknown or nonapplicable header fields MUST be ignored.<a href="#section-2.7.1-2" class="pilcrow">¶</a></p>
+<p id="section-2.7.1-1">The syntax re-uses concepts from the "multipart/byteranges" media type, except it omits the multipart separator, and so only allows a single range to be specified. It is also similar to the "message/http" media type, except the first line (the status line or request line) is omitted; a message/byterange document can be fed into a message/http parser by first prepending a line like "PUT / HTTP/1.1".<a href="#section-2.7.1-1" class="pilcrow">¶</a></p>
+<p id="section-2.7.1-2">It follows the syntax of HTTP message headers and body. It MUST include the Content-Range field. If the part body length is known by the sender, it SHOULD contain the Content-Length field. Unknown or nonapplicable fields MUST be ignored.<a href="#section-2.7.1-2" class="pilcrow">¶</a></p>
 <p id="section-2.7.1-3">The field-line and message-body productions are specified in <span>[<a href="#RFC9112" class="cite xref">RFC9112</a>]</span>.<a href="#section-2.7.1-3" class="pilcrow">¶</a></p>
 <div class="lang-abnf sourcecode" id="section-2.7.1-4">
 <pre>
@@ -1444,8 +1448,8 @@ byterange-document = *( field-line CRLF )
           <h4 id="name-syntax-2">
 <a href="#section-2.8.1" class="section-number selfRef">2.8.1. </a><a href="#name-syntax-2" class="section-name selfRef">Syntax</a>
           </h4>
-<p id="section-2.8.1-1">Parsing starts by looking for a "Known-Length Message" or an "Indeterminate-Length Message". One or the other is distinguished by the different Framing Indicator.<a href="#section-2.8.1-1" class="pilcrow">¶</a></p>
-<p id="section-2.8.1-2">The remainder of the message is parsed by reading fields, then the content, by a method depending on if the message is known-length or indeterminate-length. If there are additional parts, they begin immediately after the end of a Content.<a href="#section-2.8.1-2" class="pilcrow">¶</a></p>
+<p id="section-2.8.1-1">Parsing starts by looking for a "Known-Length Message" or an "Indeterminate-Length Message". One or the other is distinguished by reading the Framing Indicator.<a href="#section-2.8.1-1" class="pilcrow">¶</a></p>
+<p id="section-2.8.1-2">The remainder of the message is parsed by reading part fields, then the part content, depending on if the message is known-length or indeterminate-length. If there are additional parts, they begin immediately after the end of a Content.<a href="#section-2.8.1-2" class="pilcrow">¶</a></p>
 <p id="section-2.8.1-3">The "Known-Length Field Section", "Known-Length Content", "Indeterminate-Length Field Section", "Indeterminate-Length Content", "Indeterminate-Length Content Chunk", "Field Line" definitions are identical to their definition in message/bhttp. They are used in one or more Known-Length Message and/or Indeterminate-Length Message productions, concatenated together.<a href="#section-2.8.1-3" class="pilcrow">¶</a></p>
 <div class="alignLeft art-text artwork" id="section-2.8.1-4">
 <pre>
@@ -1522,7 +1526,7 @@ Field Line {
 <p id="section-3-1">As an alternative to using PUT to create a new resource, the contents of a resource may be uploaded in segments, written across several PATCH requests.<a href="#section-3-1" class="pilcrow">¶</a></p>
 <p id="section-3-2">A user-agent may also use PATCH to recover from an interrupted PUT request, if it was expected to create a new resource. The server will store the data sent to it by the user agent, but will not finalize the upload until the final length of the document is known and received.<a href="#section-3-2" class="pilcrow">¶</a></p>
 <ol start="1" type="1" class="normal type-1" id="section-3-3">
-<li id="section-3-3.1">The client makes a PUT or PATCH request to a URL, a portion of which is generated by the client, to be unpredictable to other clients. This first request creates the resource, and should include <code>If-None-Match: *</code> to verify the target does not exist. If a PUT request, the server reads the Content-Length header and stores the intended final length of the document. If a PATCH request, the "Content-Range" field in the "message/byterange" patch is read for the final length. The final length may also be undefined, and defined in a later request.<a href="#section-3-3.1" class="pilcrow">¶</a>
+<li id="section-3-3.1">The client makes a PUT or PATCH request to a URL, a portion of which is generated by the client, to be unpredictable to other clients. This first request creates the resource, and should include <code>If-None-Match: *</code> to verify the target does not exist. If a PUT request, the server reads the Content-Length field and stores the intended final length of the document. If a PATCH request, the "Content-Range" field in the "message/byterange" patch is read for the final length. The final length may also be undefined, and defined in a later request.<a href="#section-3-3.1" class="pilcrow">¶</a>
 </li>
         <li id="section-3-3.2">If any request is interrupted, the client may make a HEAD request to determine how much, if any, of the previous response was stored, and resumes uploading from that point. The server will return 200 (OK), but this may only indicate the write has been saved; the server is not obligated to begin acting on the upload until it is complete.<a href="#section-3-3.2" class="pilcrow">¶</a>
 </li>
@@ -1884,8 +1888,8 @@ Preference-Applied: transaction=persist
         <h3 id="name-document-size-hints">
 <a href="#section-6.2" class="section-number selfRef">6.2. </a><a href="#name-document-size-hints" class="section-name selfRef">Document Size Hints</a>
         </h3>
-<p id="section-6.2-1">A byte range patch is, overall, designed to require server resources that's proportional to the patch size. One possible exception to this rule is the complete-length part of the Content-Range field, which hints at the final upload size. Generally, this does not require the server to (immediately) allocate this amount of data. However, some servers may choose to begin preallocating disk space right away, which could be a very expensive operation compared to the actual size of the request.<a href="#section-6.2-1" class="pilcrow">¶</a></p>
-<p id="section-6.2-2">In general, servers SHOULD treat the complete-length hint the same as a PUT request of that size, and issue a 400 (Client Error). <span class="cref" id="_3">413 (Payload Too Large) might not be appropriate for this situation, as it would indicate the patch is too large and the client should break up the patches into smaller chunks, rather than the intended final upload size being too large.</span><a href="#section-6.2-2" class="pilcrow">¶</a></p>
+<p id="section-6.2-1">A byte range patch is, overall, designed to require server resources that's proportional to the patch size. One exception to this rule is the complete-length part of the Content-Range field, which hints at the final upload size. Generally, this does not require the server to (immediately) allocate this amount of data. However, some servers may choose to begin preallocating disk space right away, which could be a very expensive operation compared to the actual size of the request.<a href="#section-6.2-1" class="pilcrow">¶</a></p>
+<p id="section-6.2-2">In general, servers SHOULD treat the complete-length hint the same as a PUT request of that size, and issue a 400 (Client Error) if it is too large. (413 (Payload Too Large) would not be appropriate for this situation, as it would indicate the patch is too large and the client should try multiple smaller requests, rather than indicating the final upload size is too large.)<a href="#section-6.2-2" class="pilcrow">¶</a></p>
 </section>
 </div>
 </section>
@@ -1956,34 +1960,45 @@ Preference-Applied: transaction=persist
         <h3 id="name-indeterminate-length-upload">
 <a href="#appendix-A.1" class="section-number selfRef">A.1. </a><a href="#name-indeterminate-length-upload" class="section-name selfRef">Indeterminate Length Uploads</a>
         </h3>
-<p id="appendix-A.1-1">There is no standard way for a Content-Range header to indicate an unknown or indeterminate-length body starting at a certain offset; the design of partial content messages requires that the sender know the total length before transmission. However it seems it should be possible to generate an indeterminate-length partial content response (e.g. return a continuously growing audio file starting at a 4MB offset). Fixing this would require a new header, update to HTTP, or a revision of HTTP.<a href="#appendix-A.1-1" class="pilcrow">¶</a></p>
+<p id="appendix-A.1-1">There is no standard way for a Content-Range field to indicate an unknown or indeterminate-length body starting at a certain offset; the design of partial content messages requires that the sender know the total length before transmission. However it seems it should be possible to generate an indeterminate-length partial content response (e.g. return a continuously growing audio file starting at a 4MB offset). Fixing this would require a new field, update to HTTP, or a revision of HTTP.<a href="#appendix-A.1-1" class="pilcrow">¶</a></p>
+<p id="appendix-A.1-2">Support in responses could be achieved with a header (or Preference) stating that the client supports indeterminate length Partial Content responses.<a href="#appendix-A.1-2" class="pilcrow">¶</a></p>
+<p id="appendix-A.1-3">See also https://www.ietf.org/rfc/rfc8673.html which uses a very large value for the complete-length as a substitute for an indeterminate length range response.<a href="#appendix-A.1-3" class="pilcrow">¶</a></p>
+</section>
+</div>
+<div id="compatibility-with-206-partial-content-responses">
+<section id="appendix-A.2">
+        <h3 id="name-compatibility-with-206-part">
+<a href="#appendix-A.2" class="section-number selfRef">A.2. </a><a href="#name-compatibility-with-206-part" class="section-name selfRef">Compatibility with 206 (Partial Content) Responses</a>
+        </h3>
+<p id="appendix-A.2-1">The binary format <a href="#message-binary" class="auto internal xref">Section 2.8</a> is designed to be compatible as a binary version of multipart 206 (Partial Content) response. Servers could detect client support by use of a header (perhaps by listing the media type in an "Accept-Multipart-Range" header), and clients would detect the multipart response by observing the 206 status code, but lack of any Content-Range header in the response.<a href="#appendix-A.2-1" class="pilcrow">¶</a></p>
+<p id="appendix-A.2-2">The binary format itself is designed to maximize compatibility with message/bhttp, with the 4th (8-valued) bit of the Framing Indicator selected to mean "start-line omitted". However this also indicates other changes, including lack of trailers, and that another message may follow after.<a href="#appendix-A.2-2" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="sparse-documents">
-<section id="appendix-A.2">
+<section id="appendix-A.3">
         <h3 id="name-sparse-documents">
-<a href="#appendix-A.2" class="section-number selfRef">A.2. </a><a href="#name-sparse-documents" class="section-name selfRef">Sparse Documents</a>
+<a href="#appendix-A.3" class="section-number selfRef">A.3. </a><a href="#name-sparse-documents" class="section-name selfRef">Sparse Documents</a>
         </h3>
-<p id="appendix-A.2-1">This pattern can enable multiple, parallel uploads to a document at the same time. For example, uploading a large log file from multiple devices. However, this document does not define any ways for clients to track the unwritten regions in sparse documents, and the existing conditional request headers are designed to cause conflicts. Parallel uploads may require a byte-level locking scheme or conflict-free operators. This may be addressed in a later document.<a href="#appendix-A.2-1" class="pilcrow">¶</a></p>
+<p id="appendix-A.3-1">This pattern can enable multiple, parallel uploads to a document at the same time. For example, uploading a large log file from multiple devices. However, this document does not define any ways for clients to track the unwritten regions in sparse documents, and the existing conditional request headers are designed to cause conflicts. Parallel uploads may require a byte-level locking scheme or conflict-free operators. This may be addressed in a later document.<a href="#appendix-A.3-1" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="recovering-from-interrupted-put">
-<section id="appendix-A.3">
+<section id="appendix-A.4">
         <h3 id="name-recovering-from-interrupted">
-<a href="#appendix-A.3" class="section-number selfRef">A.3. </a><a href="#name-recovering-from-interrupted" class="section-name selfRef">Recovering from interrupted PUT</a>
+<a href="#appendix-A.4" class="section-number selfRef">A.4. </a><a href="#name-recovering-from-interrupted" class="section-name selfRef">Recovering from interrupted PUT</a>
         </h3>
-<p id="appendix-A.3-1">Servers do not necessarily save the results of an incomplete upload; since most clients prefer atomic writes, many servers will discard an incomplete upload. A mechanism to indicate a preference for atomic vs. non-atomic writes may be defined at a later time.<a href="#appendix-A.3-1" class="pilcrow">¶</a></p>
-<p id="appendix-A.3-2">Byte range PATCH cannot by itself be used to recover from an interrupted PUT that updates an existing document. If the server operation is atomic, the entire operation will be lost. If the server saves the upload, it may not possible to know how much of the request was received by the server, and what was old content that already existed.<a href="#appendix-A.3-2" class="pilcrow">¶</a></p>
-<p id="appendix-A.3-3">One technique would be to use a 1xx interim response to indicate a location where the partial upload is being stored. If PUT request is interrupted, the client can make PATCH requests to this temporary, non-atomic location to complete the upload. When the last part is uploaded, the original interrupted PUT request will finish.<a href="#appendix-A.3-3" class="pilcrow">¶</a></p>
+<p id="appendix-A.4-1">Servers do not necessarily save the results of an incomplete upload; since most clients prefer atomic writes, many servers will discard an incomplete upload. The "transaction" preference is intended as a way for a client to indicate it prefers partial writes that won't be lost in the event of an interruption.<a href="#appendix-A.4-1" class="pilcrow">¶</a></p>
+<p id="appendix-A.4-2">While partial writes may work for uploading new resources, this cannot by itself be used to recover from an interrupted PUT that's overwriting an existing document, since it is difficult to know how much of the request was received by the server, versus what was old content that already existed.<a href="#appendix-A.4-2" class="pilcrow">¶</a></p>
+<p id="appendix-A.4-3">One technique would be to use a 1xx interim response to indicate a location where the partial upload is being stored. If PUT request is interrupted, the client can make PATCH requests to this temporary, non-atomic location to complete the upload. When the last part is uploaded, the original target resource will be in the same state as if it had finished without interruption.<a href="#appendix-A.4-3" class="pilcrow">¶</a></p>
 </section>
 </div>
 <div id="truncation">
-<section id="appendix-A.4">
+<section id="appendix-A.5">
         <h3 id="name-truncation">
-<a href="#appendix-A.4" class="section-number selfRef">A.4. </a><a href="#name-truncation" class="section-name selfRef">Truncation</a>
+<a href="#appendix-A.5" class="section-number selfRef">A.5. </a><a href="#name-truncation" class="section-name selfRef">Truncation</a>
         </h3>
-<p id="appendix-A.4-1">One currently unspecified operation that could be useful is the ability to resize the document without specifying any content for it. Especially truncating the document to zero bytes, or some other length. The unsatisfied-range form could potentially be used this:<a href="#appendix-A.4-1" class="pilcrow">¶</a></p>
-<div class="lang-example sourcecode" id="appendix-A.4-2">
+<p id="appendix-A.5-1">One currently unspecified operation that could be useful is the ability to resize the document without specifying any content for it. Especially truncating the document to zero bytes, or some other length. The unsatisfied-range form could potentially be used this:<a href="#appendix-A.5-1" class="pilcrow">¶</a></p>
+<div class="lang-example sourcecode" id="appendix-A.5-2">
 <pre>
 PATCH /logs.txt HTTP/1.1
 Content-Type: message/byterange
@@ -1992,17 +2007,17 @@ If-Match: "foo"
 
 Content-Range: bytes */0
 
-</pre><a href="#appendix-A.4-2" class="pilcrow">¶</a>
+</pre><a href="#appendix-A.5-2" class="pilcrow">¶</a>
 </div>
 </section>
 </div>
 <div id="splicing-and-binary-diff">
-<section id="appendix-A.5">
+<section id="appendix-A.6">
         <h3 id="name-splicing-and-binary-diff">
-<a href="#appendix-A.5" class="section-number selfRef">A.5. </a><a href="#name-splicing-and-binary-diff" class="section-name selfRef">Splicing and Binary Diff</a>
+<a href="#appendix-A.6" class="section-number selfRef">A.6. </a><a href="#name-splicing-and-binary-diff" class="section-name selfRef">Splicing and Binary Diff</a>
         </h3>
-<p id="appendix-A.5-1">Operations more complicated than standard filesystem operations are out of scope for this media type. A feature of byte range patch is an upper limit on the complexity of applying the patch. In contrast, prepending, splicing, replace, or other complicated file operations could potentially require the entire file on disk be rewritten.<a href="#appendix-A.5-1" class="pilcrow">¶</a></p>
-<p id="appendix-A.5-2">Consider registering a media type for VCDIFF in this document, under the topic of "Media type registrations for byte-level patching".<a href="#appendix-A.5-2" class="pilcrow">¶</a></p>
+<p id="appendix-A.6-1">Operations more complicated than standard filesystem operations are out of scope for this media type. A feature of byte range patch is an upper limit on the complexity of applying the patch. In contrast, prepending, splicing, replace, or other complicated file operations could potentially require the entire file on disk be rewritten.<a href="#appendix-A.6-1" class="pilcrow">¶</a></p>
+<p id="appendix-A.6-2">Consider registering a media type for VCDIFF in this document, under the topic of "Media type registrations for byte-level patching".<a href="#appendix-A.6-2" class="pilcrow">¶</a></p>
 </section>
 </div>
 </section>
