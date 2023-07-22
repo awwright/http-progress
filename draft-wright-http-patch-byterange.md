@@ -32,7 +32,7 @@ informative:
 
 --- abstract
 
-This document specifies a media type for PATCH payloads that overwrites a specific byte range, to allow random access writes, or allow a resource to be uploaded in several segments.
+This document specifies a media type for PATCH to overwrite a specific byte range, allowing random access writes, or splitting an upload into multiple segments.
 
 
 
@@ -40,7 +40,7 @@ This document specifies a media type for PATCH payloads that overwrites a specif
 
 # Introduction
 
-Filesystem interfaces typically provide some way to write at a specific position in a file. While HTTP supports reading byte range offsets using the Range header ({{Section 14 of RFC9110}}), this technique cannot generally be used in PUT, because the server may ignore the Content-Range header while executing the write, causing data corruption. However, by using a method and media type that the server must understand, writes to byte ranges with Content-Range semantics becomes possible even when server support is undetermined.
+Filesystem interfaces typically provide some way to write at a specific position in a file. While HTTP supports reading byte range offsets using the Range header ({{Section 14 of RFC9110}}), this technique cannot be used opportunistically in PUT, because the server may ignore the Content-Range header, causing data corruption. However, by using a method and media type that the server must understand, writes to byte ranges with Content-Range semantics becomes possible even when server support is undetermined.
 
 This media type is intended for use in a wide variety of applications where overwriting specific parts of the file is desired. This includes idempotently writing data to a stream, appending data to a file, overwriting specific byte ranges, or writing to multiple regions in a single operation (for example, appending audio to a recording in progress while updating metadata at the beginning of the file).
 
